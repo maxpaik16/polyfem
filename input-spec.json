@@ -1,4 +1,5 @@
-[{
+[
+    {
         "pointer": "/",
         "type": "object",
         "required": [
@@ -1399,7 +1400,10 @@
         "pointer": "/space/remesh/type",
         "default": "physics",
         "type": "string",
-        "options": ["physics", "sizing_field"],
+        "options": [
+            "physics",
+            "sizing_field"
+        ],
         "doc": "Type of adaptive remeshing to use."
     },
     {
@@ -3571,8 +3575,7 @@
             "value"
         ],
         "optional": [
-            "interpolation",
-            "dimension"
+            "interpolation"
         ],
         "doc": "pressure BC entry"
     },
