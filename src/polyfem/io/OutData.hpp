@@ -59,6 +59,7 @@ namespace polyfem::io
 			bool boundary_only;
 			bool material_params;
 			bool body_ids;
+			bool surface_ids;
 			bool sol_on_grid;
 			bool velocity;
 			bool acceleration;

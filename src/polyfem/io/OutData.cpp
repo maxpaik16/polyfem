@@ -1066,6 +1066,7 @@ namespace polyfem::io
 		boundary_only = use_sampler && args["output"]["advanced"]["vis_boundary_only"];
 		material_params = args["output"]["paraview"]["options"]["material"];
 		body_ids = args["output"]["paraview"]["options"]["body_ids"];
+		surface_ids = args["output"]["paraview"]["options"]["surface_ids"];
 		sol_on_grid = args["output"]["advanced"]["sol_on_grid"] > 0;
 		velocity = args["output"]["paraview"]["options"]["velocity"];
 		acceleration = args["output"]["paraview"]["options"]["acceleration"];
@@ -1603,6 +1604,24 @@ namespace polyfem::io
 			writer.add_field("body_ids", ids);
 		}
 
+		if (opts.surface_ids)
+		{
+			Eigen::MatrixXd surface_ids(points.rows(), 1);
+
+			for (int i = 0; i < points.rows(); ++i)
+			{
+				surface_ids(i) = mesh.get_boundary_id(el_id(i));
+			}
+
+			if (obstacle.n_vertices() > 0)
+			{
+				surface_ids.conservativeResize(surface_ids.size() + obstacle.n_vertices(), 1);
+				surface_ids.bottomRows(obstacle.n_vertices()).setZero();
+			}
+
+			writer.add_field("surface_ids", surface_ids);
+		}
+
 		// interpolate_function(pts_index, rhs, fun, opts.boundary_only);
 		// writer.add_field("rhs", fun);
 
@@ -1912,6 +1931,18 @@ namespace polyfem::io
 			}
 
 			writer.add_field("body_ids", ids);
+		}
+
+		if (opts.surface_ids)
+		{
+			Eigen::MatrixXd surface_ids(boundary_vis_vertices.rows(), 1);
+
+			for (int i = 0; i < boundary_vis_vertices.rows(); ++i)
+			{
+				surface_ids(i) = mesh.get_boundary_id(boundary_vis_elements_ids(i));
+			}
+			
+			writer.add_field("surface_ids", surface_ids);
 		}
 
 		// Write the solution last so it is the default for warp-by-vector

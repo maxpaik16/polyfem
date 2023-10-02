@@ -4197,6 +4197,7 @@
             "use_hdf5",
             "material",
             "body_ids",
+            "surface_ids",
             "contact_forces",
             "friction_forces",
             "velocity",
@@ -4226,6 +4227,12 @@
         "default": false,
         "type": "bool",
         "doc": "Export volumes ids"
+    },
+    {
+        "pointer": "/output/paraview/options/surface_ids",
+        "default": false,
+        "type": "bool",
+        "doc": "Export surface ids"
     },
     {
         "pointer": "/output/paraview/options/contact_forces",
