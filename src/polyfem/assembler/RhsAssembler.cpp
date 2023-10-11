@@ -60,8 +60,15 @@ namespace polyfem
 			assert(ass_vals_cache_.is_mass());
 		}
 
+		// t defaults to 1
 		void RhsAssembler::assemble(const Density &density, Eigen::MatrixXd &rhs, const double t) const
 		{
+			std::cout << "in rhs assembler assemble" << std::endl;
+			std::cout << "size is " << size_ << std::endl;
+			std::cout << "num basis is " << n_basis_ << std::endl;
+
+			// size_ represents the dimension of the problem (always 1 for scalar problems)
+			// for non scalar problems it is the dimension of the mesh
 			rhs = Eigen::MatrixXd::Zero(n_basis_ * size_, 1);
 			if (!problem_.is_rhs_zero())
 			{
@@ -69,35 +76,57 @@ namespace polyfem
 
 				const int n_elements = int(bases_.size());
 				ElementAssemblyValues vals;
+
+				// loop over every element in the mesh
 				for (int e = 0; e < n_elements; ++e)
 				{
 					// vals.compute(e, mesh_.is_volume(), bases_[e], gbases_[e]);
+
+					// compute the transformation to a reference element
 					ass_vals_cache_.compute(e, mesh_.is_volume(), bases_[e], gbases_[e], vals);
 
+					// use the quadrature points that were computed during the above step
 					const Quadrature &quadrature = vals.quadrature;
 
+					// evaluate the rhs function at the reference coordinates
 					problem_.rhs(assembler_, vals.val, t, rhs_fun);
 
+					// loop over each dimension in the output
 					for (int d = 0; d < size_; ++d)
 					{
+						std::cout << "in loop inside assembler" << std::endl;
 						// rhs_fun.col(d) = rhs_fun.col(d).array() * vals.det.array() * quadrature.weights.array();
+
+						// loop over each quadrature point
 						for (int q = 0; q < quadrature.weights.size(); ++q)
 						{
 							// const double rho = problem_.is_time_dependent() ? density(vals.quadrature.points.row(q), vals.val.row(q), vals.element_id) : 1;
 							const double rho = density(vals.quadrature.points.row(q), vals.val.row(q), vals.element_id);
+							//std::cout << "density: " << rho << std::endl;
+							//std::cout << "det: " << vals.det(q) << std::endl;
+							//std::cout << "vals: " << vals.val(q) << std::endl;
+							
+							// integrate the rhs by multiplying by the Jacobian and quadrature weights
 							rhs_fun(q, d) *= vals.det(q) * quadrature.weights(q) * rho;
 						}
 					}
 
 					const int n_loc_bases_ = int(vals.basis_values.size());
+
+					// loop over local basis functions
 					for (int i = 0; i < n_loc_bases_; ++i)
 					{
+						// retrieve basis functions evaluated at quadrature points
 						const AssemblyValues &v = vals.basis_values[i];
 
 						for (int d = 0; d < size_; ++d)
 						{
+							// multiplying rhs function by test function (in given local basis) as per weak form
 							const double rhs_value = (rhs_fun.col(d).array() * v.val.array()).sum();
+
+							// for each global node that interacts with the local basis
 							for (std::size_t ii = 0; ii < v.global.size(); ++ii)
+								// add the contribution from this local basis function (with some weight)
 								rhs(v.global[ii].index * size_ + d) += rhs_value * v.global[ii].val;
 						}
 					}

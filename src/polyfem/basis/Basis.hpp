@@ -24,7 +24,7 @@ namespace polyfem
 			int index;  ///< global index of the actual node
 			double val; ///< weight
 
-			RowVectorNd node; ///< node position
+			RowVectorNd node; ///< node position // could use clarification?
 
 			Local2Global()
 				: index(-1), val(0)

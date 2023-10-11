@@ -53,6 +53,9 @@
 #include <memory>
 #include <filesystem>
 
+// for max - debugging
+#include <string>
+
 #include <polyfem/solver/forms/parametrization/SDFParametrizations.hpp>
 
 #include <polyfem/utils/autodiff.h>
@@ -1452,6 +1455,8 @@ namespace polyfem
 		// if (args["boundary_conditions"]["rhs"].is_string())
 		// 	rhs_path = resolve_input_path(args["boundary_conditions"]["rhs"]);
 
+		std::string problem_name(typeid(*problem).name());
+		logger().info("Type of problem is " +  problem_name);
 		json p_params = {};
 		p_params["formulation"] = assembler->name();
 		p_params["root_path"] = root_path();
@@ -1464,6 +1469,8 @@ namespace polyfem
 			else
 				p_params["bbox_center"] = {delta(0), delta(1)};
 		}
+
+		// at least in the simple case of a Laplacian Scalar problem I believe this has no effect
 		problem->set_parameters(p_params);
 
 		rhs.resize(0, 0);
@@ -1471,13 +1478,19 @@ namespace polyfem
 		timer.start();
 		logger().info("Assigning rhs...");
 
+		// instantiating RhsAssembler object
 		solve_data.rhs_assembler = build_rhs_assembler();
+
+		// actually assembling the rhs, which is stored as an Eigen::MatrixXd
 		solve_data.rhs_assembler->assemble(mass_matrix_assembler->density(), rhs);
 		rhs *= -1;
 
+
+		// ignoring mixed for now
 		// if(problem->is_mixed())
 		if (mixed_assembler != nullptr)
 		{
+			logger().info("Doing mixed assembler stuff");
 			const int prev_size = rhs.size();
 			const int n_larger = n_pressure_bases + (use_avg_pressure ? (assembler->is_fluid() ? 1 : 0) : 0);
 			rhs.conservativeResize(prev_size + n_larger, rhs.cols());

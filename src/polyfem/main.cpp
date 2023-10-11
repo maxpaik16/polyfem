@@ -134,6 +134,8 @@ int forward_simulation(const CLI::App &command_line,
 	std::vector<Eigen::MatrixXi> cells;
 	std::vector<Eigen::MatrixXd> vertices;
 
+	logger().info("In function forward_simulation");
+
 	if (in_args.empty() && hdf5_file.empty())
 	{
 		logger().error("No input file specified!");
@@ -175,7 +177,10 @@ int forward_simulation(const CLI::App &command_line,
 	in_args.merge_patch(tmp);
 
 	State state;
+	logger().info("In function State::init");
 	state.init(in_args, is_strict);
+
+	logger().info("In function State::load_mesh");
 	state.load_mesh(/*non_conforming=*/false, names, cells, vertices);
 
 	// Mesh was not loaded successfully; load_mesh() logged the error.
@@ -185,18 +190,25 @@ int forward_simulation(const CLI::App &command_line,
 		return EXIT_FAILURE;
 	}
 
+	logger().info("In function State::stats::compute_mesh_stats");
 	state.stats.compute_mesh_stats(*state.mesh);
 
+	logger().info("In function State::build_basis");
 	state.build_basis();
 
+	logger().info("In function State::assemble_rhs");
 	state.assemble_rhs();
+
+	logger().info("In function State::assemble_mass_mat");
 	state.assemble_mass_mat();
 
 	Eigen::MatrixXd sol;
 	Eigen::MatrixXd pressure;
 
+	logger().info("In function State::solve_problem");
 	state.solve_problem(sol, pressure);
 
+	logger().info("In function State::compute_errors");
 	state.compute_errors(sol);
 
 	logger().info("total time: {}s", state.timings.total_time());

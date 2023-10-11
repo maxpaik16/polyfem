@@ -194,12 +194,18 @@ namespace polyfem
 
 		void ElementAssemblyValues::compute(const int el_index, const bool is_volume, const ElementBases &basis, const ElementBases &gbasis)
 		{
+			// updates the quadrature object to the points/weights for a given element
+			// important to note that basis stores the basis functions at this specific element
 			basis.compute_quadrature(quadrature);
+			// returns the quadrature points on the given element
+			// gives .3333 .3333 for simple case -> why?
+			// std::cout << "quad points: " << quadrature.points << std::endl;
 			compute(el_index, is_volume, quadrature.points, basis, gbasis);
 		}
 
 		void ElementAssemblyValues::compute(const int el_index, const bool is_volume, const Eigen::MatrixXd &pts, const ElementBases &basis, const ElementBases &gbasis)
 		{
+			// pts are the quadrature points
 			element_id = el_index;
 			// const bool poly = !gbasis.has_parameterization;
 
@@ -249,6 +255,8 @@ namespace polyfem
 			// const double t = timer0.getElapsedTime();
 			// if (poly) { std::cout << "-- eval quadr points: " << t << std::endl; }
 
+
+			// collision here between basis the input and basis the namespace
 			const int n_local_bases = int(basis.bases.size());
 			const int n_local_g_bases = int(gbasis.bases.size());
 
@@ -263,8 +271,16 @@ namespace polyfem
 
 			for (int j = 0; j < n_local_bases; ++j)
 			{
+				// assign basis_value the global id(s) corresponding to the actual basis function's dofs
 				AssemblyValues &ass_val = basis_values[j];
 				ass_val.global = basis.bases[j].global();
+				//std::cout << ass_val.global[0].val on  << std::endl;
+				//std::cout << "cols: " << ass_val.val.cols() << std::endl;
+				//std::cout << "cols2: " << ass_val.grad.cols() << std::endl;
+
+				// checking that each value is a column vector and
+				// that each row in the gradient matrix contains a number of columns
+				// corresponding to the dimension of the mesh
 				assert(ass_val.val.cols() == 1);
 				assert(ass_val.grad.cols() == pts.cols());
 			}
@@ -322,19 +338,32 @@ namespace polyfem
 			const auto &gbasis_values = (&basis == &gbasis) ? basis_values : g_basis_values_cache_;
 			assert(gbasis_values.size() == n_local_g_bases);
 			val.resize(pts.rows(), pts.cols());
+			//std::cout << "checking val size: " << pts.rows() << std::endl;
+			//std::cout << "checking gbasis vs basis: " << (&basis == &gbasis) << std::endl;
 			val.setZero();
 			for (int j = 0; j < n_local_g_bases; ++j)
 			{
+				//std::cout << j << std::endl;
 				const Basis &b = gbasis.bases[j];
+				// the value of the geometric basis at the quadrature points
 				const auto &tmp = gbasis_values[j].val;
 
 				assert(gbasis.has_parameterization);
 				assert(tmp.size() == val.rows());
 
+				// for each global node corresponding to this geometric basis
+				//std::cout << b.global().size() << std::endl;
+				//std::cout << "out1" << std::endl;
 				for (std::size_t ii = 0; ii < b.global().size(); ++ii)
 				{
+					// for each quadrature point ??
+					//std::cout << "out2" << std::endl;
 					for (long k = 0; k < val.rows(); ++k)
 					{
+						//std::cout << b.global()[ii].node << std::endl;
+						// the value is the sum of 
+						// the given geometric basis at each quadrature point
+						// weighted by the contribution of the real node to this virtual node
 						val.row(k) += tmp(k) * b.global()[ii].node * b.global()[ii].val;
 					}
 				}

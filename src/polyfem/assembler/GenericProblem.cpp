@@ -1332,24 +1332,29 @@ namespace polyfem
 
 		void GenericScalarProblem::set_parameters(const json &params)
 		{
-			if (is_param_valid(params, "is_time_dependent"))
+			std::cout << "in set_parameters for scalar problem" << std::endl;
+ 			if (is_param_valid(params, "is_time_dependent"))
 			{
+				std::cout << "hi1" << std::endl;
 				is_time_dept_ = params["is_time_dependent"];
 			}
 
 			if (is_param_valid(params, "rhs"))
 			{
+				std::cout << "hi1" << std::endl;
 				rhs_.init(params["rhs"]);
 			}
 
 			if (is_param_valid(params, "reference") && is_param_valid(params["reference"], "solution"))
 			{
+				std::cout << "hi1" << std::endl;
 				has_exact_ = !params["reference"]["solution"].empty();
 				exact_.init(params["reference"]["solution"]);
 			}
 
 			if (is_param_valid(params, "reference") && is_param_valid(params["reference"], "gradient"))
 			{
+				std::cout << "hi1" << std::endl;
 				auto ex = params["reference"]["gradient"];
 				has_exact_grad_ = ex.size() > 0;
 				if (ex.is_array())
@@ -1365,6 +1370,7 @@ namespace polyfem
 
 			if (is_param_valid(params, "dirichlet_boundary"))
 			{
+				std::cout << "hi1" << std::endl;
 				// boundary_ids_.clear();
 				const int offset = boundary_ids_.size();
 				std::vector<json> j_boundary = flatten_ids(params["dirichlet_boundary"]);
@@ -1426,6 +1432,7 @@ namespace polyfem
 
 			if (is_param_valid(params, "neumann_boundary"))
 			{
+				std::cout << "hi1" << std::endl;
 				// neumann_boundary_ids_.clear();
 				const int offset = neumann_boundary_ids_.size();
 				auto j_boundary_tmp = params["neumann_boundary"];
@@ -1457,6 +1464,7 @@ namespace polyfem
 
 			if (is_param_valid(params, "solution"))
 			{
+				std::cout << "hi1" << std::endl;
 				auto rr = params["solution"];
 				initial_solution_.resize(rr.size());
 				assert(rr.is_array());
