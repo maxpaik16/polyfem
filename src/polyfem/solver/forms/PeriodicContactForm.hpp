@@ -31,7 +31,7 @@ namespace polyfem::solver
 
         void init(const Eigen::VectorXd &x) override;
 
-		void force_periodic_shape_derivative(const State& state, const ipc::Collisions &contact_set, const Eigen::VectorXd &solution, const Eigen::VectorXd &adjoint_sol, Eigen::VectorXd &term);
+		void force_periodic_shape_derivative(const State& state, const ipc::NormalCollisions &contact_set, const Eigen::VectorXd &solution, const Eigen::VectorXd &adjoint_sol, Eigen::VectorXd &term);
 
         Eigen::VectorXd single_to_tiled(const Eigen::VectorXd &x) const;
         Eigen::VectorXd tiled_to_single_grad(const Eigen::VectorXd &grad) const;
