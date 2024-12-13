@@ -7,6 +7,8 @@
 
 #include <ipc/utils/eigen_ext.hpp>
 
+#include <algorithm>
+
 namespace polyfem::assembler
 {
 	using namespace basis;
@@ -520,6 +522,11 @@ namespace polyfem::assembler
 
 				const double val = compute_energy(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
 				local_storage.val += val;
+
+				//if (val > 0) {
+				//	std::cout << "ElementID: " << e << ", Energy: " << val << std::endl;
+				//	std::cout << "Location: " << vals.val << std::endl;
+				//}
 			}
 		});
 
@@ -768,6 +775,98 @@ namespace polyfem::assembler
 
 		timer.stop();
 		logger().trace("done merge assembly {}s...", timer.getElapsedTime());
+	}
+
+	void NLAssembler::compute_problematic_dofs(
+		const bool is_volume,
+		const int n_basis,
+		const std::vector<basis::ElementBases> &bases,
+		const std::vector<basis::ElementBases> &gbases,
+		const AssemblyValsCache &cache,
+		const double t,
+		const double dt,
+		const Eigen::MatrixXd &displacement,
+		const Eigen::MatrixXd &displacement_prev,
+		std::vector<std::set<int>> &problematic_indices 
+	) const
+	{
+		problematic_indices.clear();
+		auto storage = create_thread_storage(LocalThreadScalarStorage());
+		const int n_bases = int(bases.size());
+		//Eigen::VectorXd strain_proxy_per_element = assemble_energy_per_element(
+		//	is_volume, bases, gbases, cache, t, dt, displacement, displacement_prev
+		//);
+		//std::sort(energy_per_element.data(), energy_per_element.data()+energy_per_element.size());
+		//int index = n_bases * 9 / 10;
+		//const double cutoff = energy_per_element(index);
+		
+		//std::cout << "Cutoff: " << cutoff << std::endl;
+		//std::cout << "Test: " << energy_per_element(0) << std::endl;
+
+		maybe_parallel_for(n_bases, [&](int start, int end, int thread_id) {
+			LocalThreadScalarStorage &local_storage = get_local_thread_storage(storage, thread_id);
+			ElementAssemblyValues &vals = local_storage.vals;
+
+			for (int e = start; e < end; ++e)
+			{
+				cache.compute(e, is_volume, bases[e], gbases[e], vals);
+
+				const Quadrature &quadrature = vals.quadrature;
+
+				assert(MAX_QUAD_POINTS == -1 || quadrature.weights.size() < MAX_QUAD_POINTS);
+				local_storage.da = vals.det.array() * quadrature.weights.array();
+
+				const bool problematic = is_problematic(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
+				//const double energy = compute_energy(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
+				//const bool problematic = energy > cutoff;
+				if (!problematic) {
+					continue;
+				}
+
+				const int n_loc_bases = int(vals.basis_values.size());
+
+				std::set<int> global_indices;
+				for (int i = 0; i < n_loc_bases; ++i)
+				{
+					const auto &global_i = vals.basis_values[i].global;
+					for (size_t ii = 0; ii < global_i.size(); ++ii)
+					{
+						for (int n = 0; n < size(); ++n)
+						{
+							const auto gi = global_i[ii].index * size() + n;
+							global_indices.insert(gi);
+						}
+					}
+				}
+
+				bool found = false;
+				for (auto &subdomain : problematic_indices)
+				{
+					std::vector<int> intersection;
+					std::set_intersection(
+						global_indices.begin(), 
+						global_indices.end(), 
+						subdomain.begin(), 
+						subdomain.end(), 
+						std::back_inserter(intersection)
+					);
+					if (intersection.size() > 0)
+					{	
+						found = true;
+						for (int index : global_indices)
+						{
+							subdomain.insert(index);
+						}
+						break;
+					}
+				}
+
+				if (!found) 
+				{
+					problematic_indices.push_back(global_indices);
+				}
+			}
+		});
 	}
 
 } // namespace polyfem::assembler

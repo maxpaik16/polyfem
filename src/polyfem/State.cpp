@@ -1755,6 +1755,27 @@ namespace polyfem
 		timer.start();
 		logger().info("Solving {}", assembler->name());
 
+		if(assembler->is_linear())
+		{
+			Eigen::MatrixXi tempF;
+			build_mesh_matrices(test_vertices,tempF);
+			test_boundary_nodes.clear();
+		}
+		else{
+			Eigen::MatrixXi tempV,tempF;
+			build_mesh_matrices(test_vertices,tempF);
+			int dim = mesh->dimension();
+			std::vector<int> order_nodes;
+			for (int i=0;i<boundary_nodes.size();i=i+dim)
+			{
+				order_nodes.push_back(boundary_nodes[i]/dim);
+			}
+			std::sort(order_nodes.begin(), order_nodes.end());
+			test_boundary_nodes=order_nodes;
+
+			// init_mesh_vertices(test_vertices);
+		}
+
 		init_solve(sol, pressure);
 
 		if (problem->is_time_dependent())
@@ -1813,7 +1834,7 @@ namespace polyfem
 
 		timer.stop();
 		timings.solving_time = timer.getElapsedTime();
-		logger().info(" took {}s", timings.solving_time);
+		logger().info(" solve took {}s", timings.solving_time);
 	}
 
 } // namespace polyfem

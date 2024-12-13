@@ -293,6 +293,9 @@ namespace polyfem
 		//---------------------------------------------------
 
 	public:
+		Eigen::MatrixXd test_vertices;
+		std::vector<int> test_boundary_nodes;
+
 		/// solves the problems
 		/// @param[out] sol solution
 		/// @param[out] pressure pressure

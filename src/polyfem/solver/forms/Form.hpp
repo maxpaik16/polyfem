@@ -4,6 +4,7 @@
 #include <polysolve/nonlinear/PostStepData.hpp>
 
 #include <filesystem>
+#include <set>
 
 namespace polyfem::solver
 {
@@ -148,6 +149,8 @@ namespace polyfem::solver
 		double weight_ = 1; ///< weight of the form (e.g., AL penalty weight or Δt²)
 
 		bool enabled_ = true; ///< If true, the form is enabled
+
+		mutable std::vector<std::set<int>> bad_indices;
 
 		std::string output_dir_;
 

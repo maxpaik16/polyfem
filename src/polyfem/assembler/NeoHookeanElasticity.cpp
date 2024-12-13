@@ -718,4 +718,37 @@ namespace polyfem::assembler
 		return res;
 	}
 
+	bool NeoHookeanElasticity::is_problematic(const NonLinearAssemblerData &data) const 
+	{
+		return false;
+		//TODO write me
+		typedef Eigen::Matrix<double, Eigen::Dynamic, 1> AutoDiffVect;
+		typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, 0, 3, 3> AutoDiffGradMat;
+
+		Eigen::Matrix<double, Eigen::Dynamic, 1> local_disp;
+		get_local_disp(data, size(), local_disp);
+
+		Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, 0, 3, 3> def_grad(size(), size());
+
+		double strain_proxy = 0;
+		const int n_pts = data.da.size();
+		for (long p = 0; p < n_pts; ++p)
+		{
+			compute_disp_grad_at_quad(data, local_disp, p, size(), def_grad);
+			
+			assert(size() == 2);
+			Eigen::Matrix<double, 2, 2> strain = (def_grad + def_grad.transpose());
+
+			for (int i = 0; i < strain.size(); ++i)
+				strain(i) *= 0.5;
+
+			strain_proxy += (strain.transpose() * strain).trace();
+		}
+
+		//std::cout << "Energy: " << compute_energy(data) << std::endl;
+		//std::cout << "StrainProxy: " << strain_proxy << std::endl;
+		//std::cout << "Location: " << data.vals.val << std::endl;
+		const double threshold = 0.1;
+		return strain_proxy > threshold;
+	}
 } // namespace polyfem::assembler

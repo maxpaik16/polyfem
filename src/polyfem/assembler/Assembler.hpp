@@ -10,6 +10,8 @@
 #include <polyfem/utils/AutodiffTypes.hpp>
 #include <polyfem/utils/Logger.hpp>
 
+#include <set>
+
 // this casses are instantiated in the cpp, cannot be used with generic assembler
 // without adding template instantiation
 namespace polyfem::assembler
@@ -108,6 +110,19 @@ namespace polyfem::assembler
 			const Eigen::MatrixXd &displacement,
 			const Eigen::MatrixXd &displacement_prev,
 			Eigen::MatrixXd &rhs) const { log_and_throw_error("Assemble grad not implemented by {}!", name()); }
+
+		virtual void compute_problematic_dofs(
+			const bool is_volume,
+			const int n_basis,
+			const std::vector<basis::ElementBases> &bases,
+			const std::vector<basis::ElementBases> &gbases,
+			const AssemblyValsCache &cache,
+			const double t,
+			const double dt,
+			const Eigen::MatrixXd &displacement,
+			const Eigen::MatrixXd &displacement_prev,
+			std::vector<std::set<int>> &problematic_indices 
+		) const {log_and_throw_error("Compute problematic dofs not implemented by {}!", name());}
 
 		// assemble hessian of energy (grad)
 		virtual void assemble_hessian(
@@ -290,6 +305,19 @@ namespace polyfem::assembler
 			utils::MatrixCache &mat_cache,
 			StiffnessMatrix &grad) const override;
 
+		void compute_problematic_dofs(
+			const bool is_volume,
+			const int n_basis,
+			const std::vector<basis::ElementBases> &bases,
+			const std::vector<basis::ElementBases> &gbases,
+			const AssemblyValsCache &cache,
+			const double t,
+			const double dt,
+			const Eigen::MatrixXd &displacement,
+			const Eigen::MatrixXd &displacement_prev,
+			std::vector<std::set<int>> &problematic_indices 
+		) const override;
+
 		virtual bool is_linear() const override { return false; }
 
 	protected:
@@ -297,6 +325,7 @@ namespace polyfem::assembler
 		virtual double compute_energy(const NonLinearAssemblerData &data) const = 0;
 		virtual Eigen::VectorXd assemble_gradient(const NonLinearAssemblerData &data) const = 0;
 		virtual Eigen::MatrixXd assemble_hessian(const NonLinearAssemblerData &data) const = 0;
+		virtual bool is_problematic(const NonLinearAssemblerData &data) const {return false;}
 	};
 
 	class ElasticityAssembler : virtual public Assembler

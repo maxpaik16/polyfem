@@ -66,6 +66,21 @@ namespace polyfem
 				solve_tensor_nonlinear(sol, t);
 			}
 
+			{
+				Eigen::MatrixXd sol_reshaped(test_vertices.rows(), test_vertices.cols());
+				Eigen::MatrixXd ori_vertices;
+				Eigen::MatrixXi ori_faces;
+				build_mesh_matrices(ori_vertices,ori_faces);
+				int count=0;
+				for (size_t i = 0; i < test_vertices.rows(); i++)
+					for (size_t j = 0; j < test_vertices.cols(); j++)
+					{
+						sol_reshaped(i,j)=sol(count);
+						count++;
+					}
+				test_vertices=ori_vertices+sol_reshaped;
+			}
+
 			if (remesh_enabled)
 			{
 				energy_csv.write(save_i, sol);
@@ -327,6 +342,8 @@ namespace polyfem
 		al_solver.solve_al(nl_solver, nl_problem, sol);
 
 		nl_solver = make_nl_solver(false);
+
+		nl_solver->update_nullspace(test_vertices, test_boundary_nodes);
 		al_solver.solve_reduced(nl_solver, nl_problem, sol);
 
 		// ---------------------------------------------------------------------
