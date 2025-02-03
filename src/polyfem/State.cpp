@@ -1774,18 +1774,47 @@ namespace polyfem
 			assert(test_elements.cols() == 4);
 			assert(dim == 3);
 			test_neighbors.resize(test_vertices.rows() * 3);
+			std::set<int> reduced_indices;
 			for (int i = 0; i < test_elements.rows(); ++i)
 			{
-				int v0 = 3 * test_elements(i, 0);
-				int v1 = 3 * test_elements(i, 1);
-				int v2 = 3 * test_elements(i, 2);
-				int v3 = 3 * test_elements(i, 3);
-				test_neighbors[v0].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[v1].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[v2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[v3].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
+				int v0 = test_elements(i, 0);
+				int v1 = test_elements(i, 1);
+				int v2 = test_elements(i, 2);
+				int v3 = test_elements(i, 3);
+
+				if (
+					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v0) &&
+					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v1) &&
+					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v2) &&
+					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v3)
+				)
+				{
+					reduced_indices.insert(i);
+				}
+
+				test_neighbors[3 * v0].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v1].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v3].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
+				test_neighbors[3 * v0 + 1].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v1 + 1].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v2 + 1].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v3 + 1].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
+				test_neighbors[3 * v0 + 2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v1 + 2].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v2 + 2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[3 * v3 + 2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
 			}
 
+			Eigen::MatrixXi test_elements_reduced(reduced_indices.size(), 4);
+
+			int i_counter = 0;
+			for (auto &i : reduced_indices)
+			{
+				test_elements_reduced(i_counter) = test_elements(i);
+				++i_counter;
+			}
+			test_elements = test_elements_reduced;
 			// init_mesh_vertices(test_vertices);
 		}
 

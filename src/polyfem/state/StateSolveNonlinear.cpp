@@ -343,6 +343,7 @@ namespace polyfem
 		Eigen::MatrixXd positions;
 		get_positions(positions);
         nl_solver->set_positions(positions);
+		nl_solver->set_elements(test_elements);
 
 		std::vector<std::set<int>> bad_indices;
 		nl_problem.get_problematic_indices(bad_indices);
