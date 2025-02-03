@@ -119,6 +119,17 @@ namespace polyfem::solver
 		}
 	}
 
+	/*void FullNLProblem::get_problematic_indices(std::vector<std::set<int>> &bad_indices)
+	{
+		for (auto &f : forms_)
+		{
+			if (f->get_problematic_indices(bad_indices))
+			{
+				return;
+			}
+		}
+	}*/
+
 	void FullNLProblem::solution_changed(const TVector &x)
 	{
 		for (auto &f : forms_)

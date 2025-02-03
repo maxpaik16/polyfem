@@ -29,11 +29,25 @@ namespace polyfem::solver
 				  const std::shared_ptr<utils::PeriodicBoundary> &periodic_bc,
 				  const double t,
 				  const std::vector<std::shared_ptr<Form>> &forms);
+		
+		NLProblem(const int full_size,
+				  const std::vector<int> &boundary_nodes,
+				  const std::vector<mesh::LocalBoundary> &local_boundary,
+				  const int n_boundary_samples,
+				  const assembler::RhsAssembler &rhs_assembler,
+				  const std::shared_ptr<utils::PeriodicBoundary> &periodic_bc,
+				  const double t,
+				  const std::vector<std::shared_ptr<Form>> &forms,
+				  const std::vector<std::set<int>> &neighbors,
+				  const bool use_neighbors_for_precond);
+
 		virtual ~NLProblem() = default;
 
 		virtual double value(const TVector &x) override;
 		virtual void gradient(const TVector &x, TVector &gradv) override;
 		virtual void hessian(const TVector &x, THessian &hessian) override;
+
+		void get_problematic_indices(std::vector<std::set<int>> &bad_indices) override;
 
 		virtual bool is_step_valid(const TVector &x0, const TVector &x1) override;
 		virtual bool is_step_collision_free(const TVector &x0, const TVector &x1) override;
@@ -69,6 +83,9 @@ namespace polyfem::solver
 
 		const std::vector<int> full_boundary_nodes_;
 		const std::vector<int> boundary_nodes_;
+
+		std::vector<std::set<int>> neighbors_;
+		const bool use_neighbors_for_precond_ = false;
 
 		const int full_size_;    ///< Size of the full problem
 		const int reduced_size_; ///< Size of the reduced problem

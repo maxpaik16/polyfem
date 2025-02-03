@@ -42,6 +42,35 @@ namespace polyfem::solver
 		const assembler::RhsAssembler &rhs_assembler,
 		const std::shared_ptr<utils::PeriodicBoundary> &periodic_bc,
 		const double t,
+		const std::vector<std::shared_ptr<Form>> &forms,
+		const std::vector<std::set<int>> &neighbors,
+		const bool use_neighbors_for_precond)
+		: FullNLProblem(forms),
+		  full_boundary_nodes_(boundary_nodes),
+		  boundary_nodes_(periodic_bc ? periodic_bc->full_to_periodic(boundary_nodes) : boundary_nodes),
+		  full_size_(full_size),
+		  reduced_size_((periodic_bc ? periodic_bc->n_periodic_dof() : full_size) - boundary_nodes_.size()),
+		  periodic_bc_(periodic_bc),
+		  t_(t),
+		  rhs_assembler_(&rhs_assembler),
+		  local_boundary_(&local_boundary),
+		  n_boundary_samples_(n_boundary_samples),
+		  neighbors_(neighbors),
+		  use_neighbors_for_precond_(use_neighbors_for_precond)
+	{
+		assert(std::is_sorted(boundary_nodes.begin(), boundary_nodes.end()));
+		assert(boundary_nodes.size() == 0 || (boundary_nodes.front() >= 0 && boundary_nodes.back() < full_size_));
+		use_reduced_size();
+	}
+
+	NLProblem::NLProblem(
+		const int full_size,
+		const std::vector<int> &boundary_nodes,
+		const std::vector<mesh::LocalBoundary> &local_boundary,
+		const int n_boundary_samples,
+		const assembler::RhsAssembler &rhs_assembler,
+		const std::shared_ptr<utils::PeriodicBoundary> &periodic_bc,
+		const double t,
 		const std::vector<std::shared_ptr<Form>> &forms)
 		: FullNLProblem(forms),
 		  full_boundary_nodes_(boundary_nodes),
@@ -116,6 +145,52 @@ namespace polyfem::solver
 		FullNLProblem::hessian(reduced_to_full(x), full_hessian);
 
 		full_hessian_to_reduced_hessian(full_hessian, hessian);
+	}
+
+	void NLProblem::get_problematic_indices(std::vector<std::set<int>> &bad_indices)
+	{
+		for (auto &f : forms_)
+		{
+			std::vector<std::set<int>> full_bad_indices;
+			if (f->get_problematic_indices(full_bad_indices))
+			{
+				
+				std::set<int> neighbors_to_add;
+				if (use_neighbors_for_precond_)
+				{
+					//std::cout << "SIZE: " << neighbors_.size() << std::endl; 
+					//std::cout << "FSIZE: " << full_size_ << std::endl; 
+					for (int i = 0; i < full_size_; ++i)
+					{
+						if (full_bad_indices[0].count(i) > 0)
+						{
+							neighbors_to_add.insert(neighbors_[i].begin(), neighbors_[i].end());
+						}
+					}
+					full_bad_indices[0].insert(neighbors_to_add.begin(), neighbors_to_add.end());
+				}
+
+				bad_indices.clear();
+				bad_indices.resize(1);
+				long j = 0;
+				size_t k = 0;
+				for (int i = 0; i < full_size_; ++i)
+				{
+					if (k < boundary_nodes_.size() && boundary_nodes_[k] == i)
+					{
+						++k;
+						continue;
+					}
+					if (full_bad_indices[0].count(i) > 0)
+					{
+						bad_indices[0].insert(j);
+					}
+					++j; 
+				}
+
+				return;
+			}
+		}
 	}
 
 	void NLProblem::solution_changed(const TVector &newX)

@@ -1757,13 +1757,11 @@ namespace polyfem
 
 		if(assembler->is_linear())
 		{
-			Eigen::MatrixXi tempF;
-			build_mesh_matrices(test_vertices,tempF);
+			build_mesh_matrices(test_vertices, test_elements);
 			test_boundary_nodes.clear();
 		}
 		else{
-			Eigen::MatrixXi tempV,tempF;
-			build_mesh_matrices(test_vertices,tempF);
+			build_mesh_matrices(test_vertices, test_elements);
 			int dim = mesh->dimension();
 			std::vector<int> order_nodes;
 			for (int i=0;i<boundary_nodes.size();i=i+dim)
@@ -1772,6 +1770,21 @@ namespace polyfem
 			}
 			std::sort(order_nodes.begin(), order_nodes.end());
 			test_boundary_nodes=order_nodes;
+
+			assert(test_elements.cols() == 4);
+			assert(dim == 3);
+			test_neighbors.resize(test_vertices.rows() * 3);
+			for (int i = 0; i < test_elements.rows(); ++i)
+			{
+				int v0 = 3 * test_elements(i, 0);
+				int v1 = 3 * test_elements(i, 1);
+				int v2 = 3 * test_elements(i, 2);
+				int v3 = 3 * test_elements(i, 3);
+				test_neighbors[v0].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[v1].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[v2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
+				test_neighbors[v3].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
+			}
 
 			// init_mesh_vertices(test_vertices);
 		}

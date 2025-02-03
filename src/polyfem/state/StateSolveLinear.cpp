@@ -73,6 +73,11 @@ namespace polyfem
 		const bool compute_spectrum,
 		Eigen::MatrixXd &sol, Eigen::MatrixXd &pressure)
 	{
+		Eigen::MatrixXd positions;
+		get_positions(positions);
+		solver->logger = &(logger());
+		solver->set_positions(positions);
+
 		assert(assembler->is_linear() && !is_contact_enabled());
 		assert(solve_data.rhs_assembler != nullptr);
 

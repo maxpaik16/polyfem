@@ -283,7 +283,7 @@ namespace polyfem
 		const int ndof = n_bases * mesh->dimension();
 		solve_data.nl_problem = std::make_shared<NLProblem>(
 			ndof, boundary_nodes, local_boundary, n_boundary_samples(),
-			*solve_data.rhs_assembler, periodic_bc, t, forms);
+			*solve_data.rhs_assembler, periodic_bc, t, forms, test_neighbors, args["solver"]["contact"]["use_neighbors_for_precond"]);
 		solve_data.nl_problem->init(sol);
 		solve_data.nl_problem->update_quantities(t, sol);
 		// --------------------------------------------------------------------
@@ -339,11 +339,22 @@ namespace polyfem
 		};
 
 		Eigen::MatrixXd prev_sol = sol;
+		
+		Eigen::MatrixXd positions;
+		get_positions(positions);
+        nl_solver->set_positions(positions);
+
+		std::vector<std::set<int>> bad_indices;
+		nl_problem.get_problematic_indices(bad_indices);
+		nl_solver->set_problematic_indices(bad_indices);
+
 		al_solver.solve_al(nl_solver, nl_problem, sol);
 
 		nl_solver = make_nl_solver(false);
 
-		nl_solver->update_nullspace(test_vertices, test_boundary_nodes);
+		bad_indices.clear();
+		nl_solver->set_problematic_indices(bad_indices);
+
 		al_solver.solve_reduced(nl_solver, nl_problem, sol);
 
 		// ---------------------------------------------------------------------

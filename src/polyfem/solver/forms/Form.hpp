@@ -143,6 +143,16 @@ namespace polyfem::solver
 
 		void set_output_dir(const std::string &output_dir) { output_dir_ = output_dir; }
 
+		bool get_problematic_indices(std::vector<std::set<int>> &bad_indices_) 
+		{
+			if (bad_indices.size() > 0)
+			{
+				bad_indices_ = bad_indices;
+				return true;
+			}
+			return false;
+		}
+
 	protected:
 		bool project_to_psd_ = false; ///< If true, the form's second derivative is projected to be positive semidefinite
 

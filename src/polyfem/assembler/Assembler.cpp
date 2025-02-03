@@ -793,12 +793,12 @@ namespace polyfem::assembler
 		problematic_indices.clear();
 		auto storage = create_thread_storage(LocalThreadScalarStorage());
 		const int n_bases = int(bases.size());
-		//Eigen::VectorXd strain_proxy_per_element = assemble_energy_per_element(
-		//	is_volume, bases, gbases, cache, t, dt, displacement, displacement_prev
-		//);
-		//std::sort(energy_per_element.data(), energy_per_element.data()+energy_per_element.size());
-		//int index = n_bases * 9 / 10;
-		//const double cutoff = energy_per_element(index);
+		Eigen::VectorXd strain_proxy_per_element = assemble_energy_per_element(
+			is_volume, bases, gbases, cache, t, dt, displacement, displacement_prev
+		);
+		std::sort(strain_proxy_per_element.data(), strain_proxy_per_element.data()+strain_proxy_per_element.size());
+		int index = n_bases * 9 / 10;
+		const double cutoff = strain_proxy_per_element(index);
 		
 		//std::cout << "Cutoff: " << cutoff << std::endl;
 		//std::cout << "Test: " << energy_per_element(0) << std::endl;
@@ -816,9 +816,9 @@ namespace polyfem::assembler
 				assert(MAX_QUAD_POINTS == -1 || quadrature.weights.size() < MAX_QUAD_POINTS);
 				local_storage.da = vals.det.array() * quadrature.weights.array();
 
-				const bool problematic = is_problematic(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
-				//const double energy = compute_energy(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
-				//const bool problematic = energy > cutoff;
+				//const bool problematic = is_problematic(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
+				const double energy = compute_energy(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
+				const bool problematic = energy > cutoff;
 				if (!problematic) {
 					continue;
 				}

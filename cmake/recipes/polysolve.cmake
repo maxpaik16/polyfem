@@ -8,4 +8,5 @@ endif()
 message(STATUS "Third-party: creating target 'polysolve'")
 
 include(CPM)
-CPMAddPackage("gh:maxpaik16/polysolve#228c53e8f01f0b7da0ca7b9bdb2d5f1f91ab1c8f")
+CPMAddPackage("gh:maxpaik16/polysolve#9cdee7185e87a77efb4635e441973c63f60aebc0")
+#target_link_libraries(polyfem "/Users/mpaik/Documents/Documents-CIMS-PHD-AP18/NYU/Daniele/Development/polysolve/build/libpolysolve.a")

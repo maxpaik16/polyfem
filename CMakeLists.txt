@@ -191,6 +191,7 @@ endif()
 # polysolve
 include(polysolve)
 target_link_libraries(polyfem PUBLIC polysolve::polysolve)
+#target_link_libraries(polyfem PUBLIC "/Users/mpaik/Documents/Documents-CIMS-PHD-AP18/NYU/Daniele/Development/polysolve/build/libpolysolve.a")
 
 # libigl
 include(libigl)

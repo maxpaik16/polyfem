@@ -1390,7 +1390,8 @@
             "CCD",
             "friction_iterations",
             "friction_convergence_tol",
-            "barrier_stiffness"
+            "barrier_stiffness",
+            "use_neighbors_for_precond"
         ],
         "doc": "Settings for contact handling in the solver."
     },
@@ -1430,6 +1431,12 @@
         "default": 1e-06,
         "type": "float",
         "doc": "CCD tolerance"
+    },
+    {
+        "pointer": "/solver/contact/use_neighbors_for_precond",
+        "default": false,
+        "type": "bool",
+        "doc": "Whether or not to include neighbors of contact nodes as problematic indices for direct subsolve preconditioner."
     },
     {
         "pointer": "/solver/contact/CCD/max_iterations",

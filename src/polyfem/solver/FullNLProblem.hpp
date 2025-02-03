@@ -40,6 +40,8 @@ namespace polyfem::solver
 
 		virtual bool stop(const TVector &x) override { return false; }
 
+		//virtual void get_problematic_indices(std::vector<std::set<int>> &bad_indices) override;
+
 	protected:
 		std::vector<std::shared_ptr<Form>> forms_;
 	};
