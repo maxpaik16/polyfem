@@ -48,6 +48,7 @@ namespace polyfem::solver
 		virtual void hessian(const TVector &x, THessian &hessian) override;
 
 		void get_problematic_indices(std::vector<std::set<int>> &bad_indices) override;
+		void get_dof_to_func_mapping(std::vector<int> &dof_to_func_mapping_out) override {dof_to_func_mapping_out = dof_to_func_mapping;}
 
 		virtual bool is_step_valid(const TVector &x0, const TVector &x1) override;
 		virtual bool is_step_collision_free(const TVector &x0, const TVector &x1) override;
@@ -86,6 +87,8 @@ namespace polyfem::solver
 
 		std::vector<std::set<int>> neighbors_;
 		const bool use_neighbors_for_precond_ = false;
+
+		std::vector<int> dof_to_func_mapping;
 
 		const int full_size_;    ///< Size of the full problem
 		const int reduced_size_; ///< Size of the reduced problem

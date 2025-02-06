@@ -154,7 +154,8 @@ namespace polyfem::solver
 			std::vector<std::set<int>> full_bad_indices;
 			if (f->get_problematic_indices(full_bad_indices))
 			{
-				
+				const int dim = 3;
+				dof_to_func_mapping.clear();
 				std::set<int> neighbors_to_add;
 				if (use_neighbors_for_precond_)
 				{
@@ -184,6 +185,7 @@ namespace polyfem::solver
 					if (full_bad_indices[0].count(i) > 0)
 					{
 						bad_indices[0].insert(j);
+						dof_to_func_mapping.push_back(i % dim);
 					}
 					++j; 
 				}

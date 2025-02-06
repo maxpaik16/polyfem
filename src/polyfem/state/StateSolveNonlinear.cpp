@@ -347,7 +347,11 @@ namespace polyfem
 
 		std::vector<std::set<int>> bad_indices;
 		nl_problem.get_problematic_indices(bad_indices);
+		std::vector<int> dof_to_func_mapping;
+		nl_problem.get_dof_to_func_mapping(dof_to_func_mapping);
+
 		nl_solver->set_problematic_indices(bad_indices);
+		nl_solver->set_dof_to_func_mapping(dof_to_func_mapping);
 
 		al_solver.solve_al(nl_solver, nl_problem, sol);
 
@@ -355,6 +359,7 @@ namespace polyfem
 
 		bad_indices.clear();
 		nl_solver->set_problematic_indices(bad_indices);
+		nl_solver->set_dof_to_func_mapping(dof_to_func_mapping);
 
 		al_solver.solve_reduced(nl_solver, nl_problem, sol);
 
