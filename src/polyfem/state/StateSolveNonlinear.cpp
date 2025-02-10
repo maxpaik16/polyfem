@@ -342,8 +342,10 @@ namespace polyfem
 		
 		Eigen::MatrixXd positions;
 		get_positions(positions);
-        nl_solver->set_positions(positions);
-		nl_solver->set_elements(test_elements);
+		std::cout << "cols: " << positions.cols() << std::endl;
+  		std::cout << "rows: " << positions.rows() << std::endl;
+        nl_solver->set_positions(positions.transpose());
+		nl_solver->set_elements(test_elements.transpose());
 
 		std::vector<std::set<int>> bad_indices;
 		nl_problem.get_problematic_indices(bad_indices);
@@ -360,6 +362,9 @@ namespace polyfem
 		bad_indices.clear();
 		nl_solver->set_problematic_indices(bad_indices);
 		nl_solver->set_dof_to_func_mapping(dof_to_func_mapping);
+		get_positions(positions);
+        nl_solver->set_positions(positions.transpose());
+		nl_solver->set_elements(test_elements.transpose());
 
 		al_solver.solve_reduced(nl_solver, nl_problem, sol);
 

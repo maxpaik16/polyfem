@@ -62,7 +62,7 @@ set(POLYFEM_SMALL_N  80 CACHE STRING "Maximum length for stack-allocated vectors
 set(POLYFEM_BIG_N   1000 CACHE STRING "Maximum length for stack-allocated vectors (gradient only).")
 
 # Polyfem options for enabling/disabling optional libraries
-option(POLYFEM_WITH_TESTS     "Build tests"                                 ON)
+option(POLYFEM_WITH_TESTS     "Build tests"                                 OFF)
 option(POLYFEM_WITH_CLIPPER   "Use clipper, necessary for polygonal bases"  ON)
 option(POLYFEM_WITH_MMG       "Build MMG utils for remeshing"              OFF)
 option(POLYFEM_WITH_TRIANGLE  "Build target igl_restricted::triangle"      OFF)
@@ -310,6 +310,8 @@ target_link_libraries(polyfem PRIVATE polyfem::warnings)
 
 # Main executable
 if(POLYFEM_TOPLEVEL_PROJECT)
+
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-pie")
     add_executable(${PROJECT_NAME}_bin src/polyfem/main.cpp)
 
     target_compile_features(${PROJECT_NAME}_bin PUBLIC cxx_std_14)

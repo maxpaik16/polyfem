@@ -1773,8 +1773,25 @@ namespace polyfem
 
 			assert(test_elements.cols() == 4);
 			assert(dim == 3);
-			test_neighbors.resize(test_vertices.rows() * 3);
+
+			std::vector<int> full_to_reduced(test_vertices.size());
 			std::set<int> reduced_indices;
+			int boundary_count = 0;
+			for (int i = 0; i < test_vertices.size(); ++i)
+			{
+				if (!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),i))
+				{
+					full_to_reduced[i] = i - boundary_count;
+					reduced_indices.insert(i);
+				}
+				else
+				{
+					++boundary_count;
+				}
+			}
+
+			std::set<int> reduced_element_indices;
+			test_neighbors.resize(reduced_indices.size() * 3);
 			for (int i = 0; i < test_elements.rows(); ++i)
 			{
 				int v0 = test_elements(i, 0);
@@ -1782,36 +1799,49 @@ namespace polyfem
 				int v2 = test_elements(i, 2);
 				int v3 = test_elements(i, 3);
 
-				if (
-					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v0) &&
-					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v1) &&
-					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v2) &&
-					!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),v3)
-				)
+				int reduced_count = reduced_indices.count(v0) + reduced_indices.count(v1) + reduced_indices.count(v2) + reduced_indices.count(v3);
+
+				if (reduced_count == 4)
 				{
-					reduced_indices.insert(i);
+					reduced_element_indices.insert(i);
 				}
 
-				test_neighbors[3 * v0].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v1].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v3].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
-				test_neighbors[3 * v0 + 1].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v1 + 1].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v2 + 1].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v3 + 1].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
-				test_neighbors[3 * v0 + 2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v1 + 2].insert({3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v2 + 2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2, 3 * v3, 3 * v3 + 1, 3 * v3 + 2});
-				test_neighbors[3 * v3 + 2].insert({3 * v1, 3 * v1 + 1, 3 * v1 + 2, 3 * v2, 3 * v2 + 1, 3 * v2 + 2, 3 * v0, 3 * v0 + 1, 3 * v0 + 2});
+				int v0_remapped = full_to_reduced[v0];
+				int v1_remapped = full_to_reduced[v1];
+				int v2_remapped = full_to_reduced[v2];
+				int v3_remapped = full_to_reduced[v3];
+
+				std::set<int> local_neighborhood =
+					{
+						3 * v0_remapped, 3 * v0_remapped + 1, 3 * v0_remapped + 2,
+						3 * v1_remapped, 3 * v1_remapped + 1, 3 * v1_remapped + 2,
+						3 * v2_remapped, 3 * v2_remapped + 1, 3 * v2_remapped + 2,
+						3 * v3_remapped, 3 * v3_remapped + 1, 3 * v3_remapped + 2,
+					};
+
+				test_neighbors[3 * v0_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v1_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v2_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v3_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v0_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v1_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v2_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v3_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v0_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v1_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v2_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v3_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
 			}
 
-			Eigen::MatrixXi test_elements_reduced(reduced_indices.size(), 4);
+			Eigen::MatrixXi test_elements_reduced(reduced_element_indices.size(), 4);
 
 			int i_counter = 0;
-			for (auto &i : reduced_indices)
+			for (auto &i : reduced_element_indices)
 			{
-				test_elements_reduced.row(i_counter) = test_elements.row(i);
+				for (int j = 0; j < dim+1; ++j)
+				{
+					test_elements_reduced(i_counter, j) = full_to_reduced[test_elements(i, j)];
+				}
 				++i_counter;
 			}
 			test_elements = test_elements_reduced;
