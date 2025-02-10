@@ -1811,7 +1811,7 @@ namespace polyfem
 			int i_counter = 0;
 			for (auto &i : reduced_indices)
 			{
-				test_elements_reduced(i_counter) = test_elements(i);
+				test_elements_reduced.row(i_counter) = test_elements.row(i);
 				++i_counter;
 			}
 			test_elements = test_elements_reduced;
