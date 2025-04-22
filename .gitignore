@@ -85,3 +85,9 @@ PolyFEMOptions.cmake
 docs/html
 scripts/*.txt
 scripts/*.json
+trash-compactor/** 
+mat-twist/** 
+one-thread-comparison/**
+large-stiffness-ratio/**
+rod-twist/**
+iteration-tracking/** 

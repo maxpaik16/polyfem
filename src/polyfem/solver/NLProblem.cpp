@@ -205,14 +205,14 @@ namespace polyfem::solver
 		FullNLProblem::post_step(polysolve::nonlinear::PostStepData(data.iter_num, data.solver_info, reduced_to_full(data.x), reduced_to_full(data.grad)));
 
 		// TODO: add me back
-		// if (state_.args["output"]["advanced"]["save_nl_solve_sequence"])
-		// {
-		// 	const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(x), state_.mesh->dimension());
-		// 	io::OBJWriter::write(
-		// 		state_.resolve_output_path(fmt::format("nonlinear_solve_iter{:03d}.obj", iter_num)),
-		// 		state_.collision_mesh.displace_vertices(displacements),
-		// 		state_.collision_mesh.edges(), state_.collision_mesh.faces());
-		// }
+		if (state_->args["output"]["advanced"]["save_nl_solve_sequence"])
+		{
+		 	const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(data.x), state_->mesh->dimension());
+		 	io::OBJWriter::write(
+		 		state_->resolve_output_path(fmt::format("nonlinear_solve_iter{:03d}.obj", data.iter_num)),
+		 		state_->collision_mesh.displace_vertices(displacements),
+		 		state_->collision_mesh.edges(), state_->collision_mesh.faces());
+		}
 	}
 
 	void NLProblem::set_apply_DBC(const TVector &x, const bool val)

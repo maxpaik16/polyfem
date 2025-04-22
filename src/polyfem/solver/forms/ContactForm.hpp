@@ -53,7 +53,8 @@ namespace polyfem::solver
 					const bool enable_shape_derivatives,
 					const ipc::BroadPhaseMethod broad_phase_method,
 					const double ccd_tolerance,
-					const int ccd_max_iterations);
+					const int ccd_max_iterations,
+					const double solver_cutoff);
 		virtual ~ContactForm() = default;
 
 		std::string name() const override { return "contact"; }
@@ -181,6 +182,8 @@ namespace polyfem::solver
 		const double ccd_tolerance_;
 		/// @brief Continuous collision detection maximum iterations
 		const int ccd_max_iterations_;
+
+		const double solver_cutoff_;
 
 		/// @brief Previous minimum distance between all elements
 		double prev_distance_;

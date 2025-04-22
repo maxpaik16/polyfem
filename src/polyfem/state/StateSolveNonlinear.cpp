@@ -259,6 +259,7 @@ namespace polyfem
 			args["solver"]["contact"]["CCD"]["broad_phase"],
 			args["solver"]["contact"]["CCD"]["tolerance"],
 			args["solver"]["contact"]["CCD"]["max_iterations"],
+			args["contact"]["solver_cutoff"],
 			optimization_enabled == solver::CacheLevel::Derivatives,
 			// Homogenization
 			macro_strain_constraint,
@@ -286,6 +287,7 @@ namespace polyfem
 			*solve_data.rhs_assembler, periodic_bc, t, forms, test_neighbors, args["solver"]["contact"]["use_neighbors_for_precond"]);
 		solve_data.nl_problem->init(sol);
 		solve_data.nl_problem->update_quantities(t, sol);
+		solve_data.nl_problem->state_ = this;
 		// --------------------------------------------------------------------
 
 		stats.solver_info = json::array();
@@ -340,11 +342,7 @@ namespace polyfem
 
 		Eigen::MatrixXd prev_sol = sol;
 		
-		Eigen::MatrixXd positions;
-		get_positions(positions);
-		std::cout << "cols: " << positions.cols() << std::endl;
-  		std::cout << "rows: " << positions.rows() << std::endl;
-        nl_solver->set_positions(positions.transpose());
+        nl_solver->set_positions(test_vertices.transpose());
 		nl_solver->set_elements(test_elements.transpose());
 
 		std::vector<std::set<int>> bad_indices;
@@ -362,9 +360,10 @@ namespace polyfem
 		bad_indices.clear();
 		nl_solver->set_problematic_indices(bad_indices);
 		nl_solver->set_dof_to_func_mapping(dof_to_func_mapping);
+		Eigen::MatrixXd positions;
 		get_positions(positions);
         nl_solver->set_positions(positions.transpose());
-		nl_solver->set_elements(test_elements.transpose());
+		nl_solver->set_elements(test_reduced_elements.transpose());
 
 		al_solver.solve_reduced(nl_solver, nl_problem, sol);
 

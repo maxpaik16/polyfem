@@ -26,7 +26,8 @@ namespace polyfem::solver
 							 const bool enable_shape_derivatives,
 							 const ipc::BroadPhaseMethod broad_phase_method,
 							 const double ccd_tolerance,
-							 const int ccd_max_iterations)
+							 const int ccd_max_iterations, 
+							 const double solver_cutoff)
 		: collision_mesh_(collision_mesh),
 		  dhat_(dhat),
 		  use_adaptive_barrier_stiffness_(use_adaptive_barrier_stiffness),
@@ -36,6 +37,7 @@ namespace polyfem::solver
 		  broad_phase_method_(broad_phase_method),
 		  ccd_tolerance_(ccd_tolerance),
 		  ccd_max_iterations_(ccd_max_iterations),
+		  solver_cutoff_(solver_cutoff),
 		  barrier_potential_(dhat)
 	{
 		assert(dhat_ > 0);
@@ -205,13 +207,13 @@ namespace polyfem::solver
 		Eigen::VectorXd grad_copy = gradv.cwiseAbs();
 		std::sort(grad_copy.data(), grad_copy.data()+grad_copy.size());
 		logger().debug("Max contact force unweighted: {}, Min contact force unweighted: {}", grad_copy.maxCoeff(), grad_copy.minCoeff());
-		const int index = grad_copy.size() * 8 / 10;
+		const int index = grad_copy.size() * solver_cutoff_;
 		const double cutoff = grad_copy(index);
 		bad_indices.clear();
 		bad_indices.resize(1);
 		for (int i = 0; i < gradv.size(); ++i)
 		{
-			if (abs(gradv(i)) > 0)
+			if (abs(gradv(i)) > 0 && abs(gradv(i)) >= cutoff)
 			{
 				bad_indices[0].insert(i);
 			}	

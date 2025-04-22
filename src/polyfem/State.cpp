@@ -1833,18 +1833,17 @@ namespace polyfem
 				test_neighbors[3 * v3_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
 			}
 
-			Eigen::MatrixXi test_elements_reduced(reduced_element_indices.size(), 4);
+			test_reduced_elements.resize(reduced_element_indices.size(), 4);
 
 			int i_counter = 0;
 			for (auto &i : reduced_element_indices)
 			{
 				for (int j = 0; j < dim+1; ++j)
 				{
-					test_elements_reduced(i_counter, j) = full_to_reduced[test_elements(i, j)];
+					test_reduced_elements(i_counter, j) = full_to_reduced[test_elements(i, j)];
 				}
 				++i_counter;
 			}
-			test_elements = test_elements_reduced;
 			// init_mesh_vertices(test_vertices);
 		}
 

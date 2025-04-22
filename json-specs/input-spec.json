@@ -1191,7 +1191,8 @@
             "friction_coefficient",
             "use_convergent_formulation",
             "collision_mesh",
-            "periodic"
+            "periodic",
+            "solver_cutoff"
         ],
         "doc": "Contact handling parameters."
     },
@@ -1284,10 +1285,10 @@
         "doc": "Type of tessellation to use for building the collision mesh."
     },
     {
-        "pointer": "/contact/collision_mesh/enabled",
-        "type": "bool",
-        "default": true,
-        "doc": ""
+        "pointer": "/contact/solver_cutoff",
+        "type": "float",
+        "default": 0,
+        "doc": "percentile cutoff for marking contact nodes"
     },
     {
         "pointer": "/contact/periodic",

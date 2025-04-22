@@ -295,6 +295,7 @@ namespace polyfem
 	public:
 		Eigen::MatrixXd test_vertices;
 		Eigen::MatrixXi test_elements;
+		Eigen::MatrixXi test_reduced_elements;
 		std::vector<int> test_boundary_nodes;
 		std::vector<std::set<int>> test_neighbors;
 
