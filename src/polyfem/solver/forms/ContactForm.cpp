@@ -204,6 +204,7 @@ namespace polyfem::solver
 		gradv = barrier_potential_.gradient(collision_set_, collision_mesh_, compute_displaced_surface(x));
 
 		gradv = collision_mesh_.to_full_dof(gradv);
+		last_grad = gradv;
 		Eigen::VectorXd grad_copy = gradv.cwiseAbs();
 		std::sort(grad_copy.data(), grad_copy.data()+grad_copy.size());
 		logger().debug("Max contact force unweighted: {}, Min contact force unweighted: {}", grad_copy.maxCoeff(), grad_copy.minCoeff());
@@ -213,9 +214,22 @@ namespace polyfem::solver
 		bad_indices.resize(1);
 		for (int i = 0; i < gradv.size(); ++i)
 		{
-			if (abs(gradv(i)) > 0 && abs(gradv(i)) >= cutoff)
+			if (abs(gradv(i)) > 0)// && abs(gradv(i)) >= cutoff)
 			{
 				bad_indices[0].insert(i);
+				if (i % 3 == 0)
+				{
+					bad_indices[0].insert(i + 1);
+					bad_indices[0].insert(i + 2);
+				} else if (i % 3 == 1)
+				{
+					bad_indices[0].insert(i - 1);
+					bad_indices[0].insert(i + 1);
+				} else
+				{
+					bad_indices[0].insert(i - 2);
+					bad_indices[0].insert(i - 1);
+				};
 			}	
 		}
 

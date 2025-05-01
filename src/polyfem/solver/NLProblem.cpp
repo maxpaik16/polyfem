@@ -1,6 +1,8 @@
 #include "NLProblem.hpp"
 
 #include <polyfem/io/OBJWriter.hpp>
+#include <fstream>
+#include <polyfem/solver/forms/ContactForm.hpp>
 
 /*
 m \frac{\partial^2 u}{\partial t^2} = \psi = \text{div}(\sigma[u])\newline
@@ -204,15 +206,64 @@ namespace polyfem::solver
 	{
 		FullNLProblem::post_step(polysolve::nonlinear::PostStepData(data.iter_num, data.solver_info, reduced_to_full(data.x), reduced_to_full(data.grad)));
 
+		if (state_->args["output"]["advanced"]["save_selected_nodes"])
+		{
+			std::ofstream grad_file(state_->resolve_output_path(fmt::format("grad_{:05d}.txt", total_step)));
+			grad_file << reduced_to_full(data.grad);
+			grad_file.close();
+
+
+			for (auto &f : forms_)
+			{
+				ContactForm* contact_form = dynamic_cast<ContactForm*>(f.get());
+				if (contact_form)
+				{
+					Eigen::VectorXd contact_grad = contact_form->last_grad;
+					if (contact_grad.size() > 0)
+					{
+						std::ofstream contact_grad_file(state_->resolve_output_path(fmt::format("contact_grad_{:05d}.txt", total_step)));
+						contact_grad_file << reduced_to_full(contact_grad);
+						contact_grad_file.close();
+					}
+				}
+			}
+
+		}
+
 		// TODO: add me back
 		if (state_->args["output"]["advanced"]["save_nl_solve_sequence"])
 		{
 		 	const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(data.x), state_->mesh->dimension());
-		 	io::OBJWriter::write(
-		 		state_->resolve_output_path(fmt::format("nonlinear_solve_iter{:03d}.obj", data.iter_num)),
-		 		state_->collision_mesh.displace_vertices(displacements),
-		 		state_->collision_mesh.edges(), state_->collision_mesh.faces());
+		 	
+			Eigen::MatrixXi edges = state_->collision_mesh.edges();
+			Eigen::MatrixXi faces = state_->collision_mesh.faces();
+
+			for (int i = 0; i < edges.rows(); ++i)
+			{
+				edges(i, 0) = state_->collision_mesh.to_full_vertex_id(edges(i, 0));
+				edges(i, 1) = state_->collision_mesh.to_full_vertex_id(edges(i, 1));
+			}
+
+			for (int i = 0; i < faces.rows(); ++i)
+			{
+				faces(i, 0) = state_->collision_mesh.to_full_vertex_id(faces(i, 0));
+				faces(i, 1) = state_->collision_mesh.to_full_vertex_id(faces(i, 1));
+				faces(i, 2) = state_->collision_mesh.to_full_vertex_id(faces(i, 2));
+			}
+
+			Eigen::MatrixXd vertices = state_->collision_mesh.displace_vertices(displacements);
+			Eigen::MatrixXd full_vertices(vertices.rows(), vertices.cols());
+			for (int i = 0; i < vertices.rows(); ++i)
+			{
+				full_vertices.row(state_->collision_mesh.to_full_vertex_id(i)) = vertices.row(i);
+			}
+			
+			io::OBJWriter::write(
+		 		state_->resolve_output_path(fmt::format("nonlinear_solve_iter{:05d}.obj", total_step)),
+		 		full_vertices,
+		 		edges, faces);
 		}
+		++total_step;
 	}
 
 	void NLProblem::set_apply_DBC(const TVector &x, const bool val)

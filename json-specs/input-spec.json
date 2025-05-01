@@ -2928,7 +2928,8 @@
             "save_ccd_debug_meshes",
             "save_time_sequence",
             "save_nl_solve_sequence",
-            "spectrum"
+            "spectrum",
+            "save_selected_nodes"
         ],
         "doc": "Additional output options"
     },
@@ -2937,6 +2938,12 @@
         "default": "step_",
         "type": "string",
         "doc": "Prefix for output file names for each time step, the final file is step_i.[vtu|vtm] where i is the time index."
+    },
+    {
+        "pointer": "/output/advanced/save_selected_nodes",
+        "default": false,
+        "type": "bool",
+        "doc": "Whether or not to save selected nodes in dss solve (and some additional info)"
     },
     {
         "pointer": "/output/advanced/sol_on_grid",

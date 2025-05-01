@@ -81,6 +81,7 @@ namespace polyfem::solver
 		void set_apply_DBC(const TVector &x, const bool val);
 
 		State* state_;
+		unsigned int total_step = 0;
 
 	protected:
 		virtual Eigen::MatrixXd boundary_values() const;
