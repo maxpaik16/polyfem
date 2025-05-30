@@ -91,3 +91,11 @@ one-thread-comparison/**
 large-stiffness-ratio/**
 rod-twist/**
 iteration-tracking/** 
+pin-cushion-ball/**
+dolphin-funnel/**
+golf-ball/** 
+plot.py
+run.py
+clean-examples/**
+trash-compactor-octocat/**
+two-mats/**

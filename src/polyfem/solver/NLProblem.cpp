@@ -145,6 +145,7 @@ namespace polyfem::solver
 	{
 		THessian full_hessian;
 		FullNLProblem::hessian(reduced_to_full(x), full_hessian);
+		last_hessian = full_hessian;
 
 		full_hessian_to_reduced_hessian(full_hessian, hessian);
 	}
@@ -212,6 +213,18 @@ namespace polyfem::solver
 			grad_file << reduced_to_full(data.grad);
 			grad_file.close();
 
+			std::ofstream hess_norm_file(state_->resolve_output_path(fmt::format("hess_norm_{:05d}.txt", total_step)));
+			Eigen::VectorXd hess_norms(full_size_);
+			if (last_hessian.size() > 0)
+			{
+				for (int i = 0; i < last_hessian.cols(); ++i)
+				{
+					hess_norms(i) = last_hessian.col(i).norm();
+				}	
+			}
+			hess_norm_file << hess_norms;
+			hess_norm_file.close();
+			
 
 			for (auto &f : forms_)
 			{
@@ -233,7 +246,16 @@ namespace polyfem::solver
 		// TODO: add me back
 		if (state_->args["output"]["advanced"]["save_nl_solve_sequence"])
 		{
-		 	const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(data.x), state_->mesh->dimension());
+			if (state_->args["output"]["advanced"]["save_nl_solve_sequence"])
+			{
+				const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(data.x), state_->mesh->dimension());
+				io::OBJWriter::write(
+					state_->resolve_output_path(fmt::format("nonlinear_solve_iter{:03d}.obj", total_step)),
+					state_->collision_mesh.displace_vertices(displacements),
+					state_->collision_mesh.edges(), state_->collision_mesh.faces());
+			}
+
+		 	/*const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(data.x), state_->mesh->dimension());
 		 	
 			Eigen::MatrixXi edges = state_->collision_mesh.edges();
 			Eigen::MatrixXi faces = state_->collision_mesh.faces();
@@ -261,7 +283,7 @@ namespace polyfem::solver
 			io::OBJWriter::write(
 		 		state_->resolve_output_path(fmt::format("nonlinear_solve_iter{:05d}.obj", total_step)),
 		 		full_vertices,
-		 		edges, faces);
+		 		edges, faces);*/
 		}
 		++total_step;
 	}
