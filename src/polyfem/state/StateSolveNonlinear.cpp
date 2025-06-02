@@ -25,6 +25,10 @@
 
 #include <ipc/ipc.hpp>
 
+#include <polyfem/CWrapper.cpp>
+
+#include <fstream>
+
 namespace polyfem
 {
 	using namespace mesh;
@@ -63,7 +67,58 @@ namespace polyfem
 
 			{
 				POLYFEM_SCOPED_TIMER(forward_solve_time);
-				solve_tensor_nonlinear(sol, t);
+				if (run_sim)
+				{
+					solve_tensor_nonlinear(sol, t);
+				}
+				else 
+				{
+					std::cout << "Sol rows: " << sol.rows() << " Sol cols: " << sol.cols() << std::endl;
+					unsigned int ndofs = sol.size();
+					double* x = static_cast<double*>(malloc(ndofs * sizeof(double)));
+
+					x[0] = 1;
+					for (int i = 1; i < 6; ++i)
+					{
+						x[i] = 0;
+					}
+					
+					double energy = get_objective(static_cast<void*>(this), x, ndofs);
+					std::ofstream energy_file("energy.txt", std::ios::app);
+					energy_file << energy << std::endl;
+					energy_file.close();
+
+					double* grad = static_cast<double*>(malloc(ndofs * sizeof(double)));
+					get_gradient(static_cast<void*>(this), x, grad, ndofs);
+
+					std::ofstream grad_file("grad.txt", std::ios::app);
+					for (int i = 0; i < 6; ++i)
+					{
+						grad_file << grad[i] << " ";
+					}
+					grad_file << std::endl;
+					grad_file.close();
+
+					unsigned int* rows;
+					unsigned int* cols;
+					double* vals; 
+					unsigned int nvals;
+
+					get_hessian(static_cast<void*>(this), x, ndofs, rows, cols, vals, &nvals);
+					std::ofstream hess_file("hess.txt", std::ios::app);
+					for (int i = 0; i < nvals; ++i)
+					{
+						hess_file << "(" << rows[i] << ", " << cols[i] << ", " << vals[i] << ") ";
+					}
+					hess_file << std::endl;
+					hess_file.close();
+
+					free(x);
+					free(grad);
+					free(rows);
+					free(cols);
+					free(vals);
+				}
 			}
 
 			if (remesh_enabled)

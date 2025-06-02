@@ -346,6 +346,8 @@ namespace polyfem
 					logger().error("Only constant rhs over space is supported in differentiable code!");
 			}
 		}
+
+		run_sim = args["run_simulation"];
 	}
 
 	void State::set_max_threads(const int max_threads)

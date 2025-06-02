@@ -1725,8 +1725,9 @@ namespace polyfem
 				solve_transient_linear(time_steps, t0, dt, sol, pressure);
 			else if (!assembler->is_linear() && problem->is_scalar())
 				throw std::runtime_error("Nonlinear scalar problems are not supported yet!");
-			else
+			else {
 				solve_transient_tensor_nonlinear(time_steps, t0, dt, sol);
+			}
 		}
 		else
 		{

@@ -7,7 +7,7 @@ else()
 endif()
 
 # Check required CMake version
-set(REQUIRED_CMAKE_VERSION "3.25.0")
+set(REQUIRED_CMAKE_VERSION "3.22.0")
 if(POLYFEM_TOPLEVEL_PROJECT)
     cmake_minimum_required(VERSION ${REQUIRED_CMAKE_VERSION})
     if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0.0")

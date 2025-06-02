@@ -582,6 +582,7 @@ namespace polyfem
 		//-----------------OUTPUT----------------------------
 		//---------------------------------------------------
 	public:
+		bool run_sim = true;
 		/// Directory for output files
 		std::string output_dir;
 		/// visualization stuff

@@ -6,6 +6,7 @@ set(SOURCES
 	OptState.hpp
 	Units.cpp
 	Units.hpp
+	CWrapper.cpp
 )
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "Source Files" FILES ${SOURCES})

@@ -20,7 +20,8 @@
             "constraints",
             "output",
             "input",
-            "tests"
+            "tests",
+            "run_simulation"
         ],
         "doc": "Root of the configuration file."
     },
@@ -32,6 +33,12 @@
             ".json"
         ],
         "doc": "Path to common settings will patch the current file."
+    },
+    {
+        "pointer": "/run_simulation",
+        "default": true,
+        "type": "bool",
+        "doc": "Whether or not to actually run the simulation."
     },
     {
         "pointer": "/root_path",
