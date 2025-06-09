@@ -13,7 +13,9 @@
 
 #include <polysolve/linear/Solver.hpp>
 
+#define HYPRE_WITH_MPI 1
 #include <mpi.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 using namespace polyfem;
 using namespace solver;
@@ -159,7 +161,7 @@ int main(int argc, char **argv)
 			logger->set_level(spdlog::level::off);
 
 			// create solver
-			auto solver = polysolve::linear::Solver::create(in_args["solver"]["linear"]["solver"], "");
+			auto solver = polysolve::linear::Solver::create(in_args["solver"]["linear"]["solver"][0], "");
 			solver->logger = logger.get();
 
 			solver->set_parameters(in_args["solver"]["linear"]);
@@ -167,24 +169,35 @@ int main(int argc, char **argv)
 			while (true)
 			{
 				Eigen::SparseMatrix<double> A;
-				Eigen::VectorXd b;
+				Eigen::SparseMatrix<double, Eigen::RowMajor> A_row_maj;
+				Eigen::VectorXd b, x;
 				int rows, cols, nnzs;
 
 				MPI_Bcast(&rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
 				MPI_Bcast(&cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
 				MPI_Bcast(&nnzs, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-				A.resize(rows, cols);
-				A.reserve(nnzs);
+				logger->trace("Rows: {}, Cols: {}, NNZs: {}", rows, cols, nnzs);
 
-				MPI_Bcast(A.valuePtr(), nnzs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-				MPI_Bcast(A.innerIndexPtr(), nnzs, MPI_INT, 0, MPI_COMM_WORLD);
-				MPI_Bcast(A.outerIndexPtr(), rows, MPI_INT, 0, MPI_COMM_WORLD);
+				A_row_maj.resize(rows, cols);
+				A_row_maj.reserve(nnzs);
+
+				MPI_Bcast(A_row_maj.valuePtr(), nnzs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+				MPI_Bcast(A_row_maj.innerIndexPtr(), nnzs, MPI_INT, 0, MPI_COMM_WORLD);
+				MPI_Bcast(A_row_maj.outerIndexPtr(), rows+1, MPI_INT, 0, MPI_COMM_WORLD);
+
+				A = A_row_maj;
+
+				logger->trace("A Rows: {}, A Cols: {}, A NNZs: {}", A.rows(), A.cols(), A.nonZeros());
+
+				int start_factorize, start_solve;
 
 				MPI_Bcast(&start_factorize, 1, MPI_INT, 0, MPI_COMM_WORLD);
 				solver->factorize(A);
 				b.resize(rows);
 				MPI_Bcast(b.data(), rows, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+				x.resize(rows); 
+				MPI_Bcast(x.data(), rows, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 				MPI_Bcast(&start_solve, 1, MPI_INT, 0, MPI_COMM_WORLD);
 				solver->solve(b, x);
 			}
