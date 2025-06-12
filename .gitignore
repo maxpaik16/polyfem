@@ -88,3 +88,5 @@ scripts/*.json
 /.vs
 /CMakeSettings.json
 cwrap-test/** 
+julia-test/**
+trash-compactor-octocat/**

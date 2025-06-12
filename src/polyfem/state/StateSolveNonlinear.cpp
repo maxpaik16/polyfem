@@ -70,6 +70,7 @@ namespace polyfem
 				if (run_sim)
 				{
 					solve_tensor_nonlinear(sol, t);
+					//std::cout << "Sol: " << sol.transpose() << std::endl;
 				}
 				else 
 				{
@@ -77,7 +78,7 @@ namespace polyfem
 					unsigned int ndofs = sol.size();
 					double* x = static_cast<double*>(malloc(ndofs * sizeof(double)));
 
-					x[0] = 1;
+					x[0] = 1*(t-1);
 					for (int i = 1; i < 6; ++i)
 					{
 						x[i] = 0;
@@ -104,7 +105,7 @@ namespace polyfem
 					double* vals; 
 					unsigned int nvals;
 
-					get_hessian(static_cast<void*>(this), x, ndofs, rows, cols, vals, &nvals);
+					get_hessian(static_cast<void*>(this), x, ndofs, &rows, &cols, &vals, &nvals);
 					std::ofstream hess_file("hess.txt", std::ios::app);
 					for (int i = 0; i < nvals; ++i)
 					{

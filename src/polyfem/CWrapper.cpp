@@ -53,7 +53,7 @@ extern "C"
         }
     }
 
-    void get_hessian(void* void_state_ptr, double* x, unsigned int ndofs, unsigned int* rows, unsigned int* cols, double* vals, unsigned int* nvals)
+    void get_hessian(void* void_state_ptr, double* x, unsigned int ndofs, unsigned int** rows, unsigned int** cols, double** vals, unsigned int* nvals)
     {
         State* state_ptr = static_cast<State*>(void_state_ptr);
         if (!state_ptr)
@@ -70,10 +70,10 @@ extern "C"
         
         *nvals = hessian.nonZeros();
 
-        rows = static_cast<unsigned int*>(malloc(sizeof(unsigned int) * (*nvals)));
-        cols = static_cast<unsigned int*>(malloc(sizeof(unsigned int) * (*nvals)));
-        vals = static_cast<double*>(malloc(sizeof(double) * (*nvals)));
-        if (!(rows && cols && vals))
+        *rows = static_cast<unsigned int*>(malloc(sizeof(unsigned int) * (*nvals)));
+        *cols = static_cast<unsigned int*>(malloc(sizeof(unsigned int) * (*nvals)));
+        *vals = static_cast<double*>(malloc(sizeof(double) * (*nvals)));
+        if (!(*rows && *cols && *vals))
         {
             assert(fales);
         }
@@ -83,9 +83,9 @@ extern "C"
         {
             for (StiffnessMatrix::InnerIterator it(hessian, k); it; ++it)
             {
-                rows[i] = it.row();
-                cols[i] = it.col();
-                vals[i] = it.value();
+                (*rows)[i] = it.row();
+                (*cols)[i] = it.col();
+                (*vals)[i] = it.value();
                 ++i;
             }
         }
