@@ -167,21 +167,6 @@ if(IPC_TOOLKIT_WITH_CUDA OR POLYSOLVE_WITH_CUSOLVER)
     else()
         message(FATAL_ERROR "No CUDA support found!")
     endif()
-
-    set_target_properties(polyfem PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-
-    if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24.0")
-        set(CMAKE_CUDA_ARCHITECTURES "native")
-        set_target_properties(ipc_toolkit PROPERTIES CUDA_ARCHITECTURES "native")
-    else()
-        include(FindCUDA/select_compute_arch)
-        CUDA_DETECT_INSTALLED_GPUS(CUDA_ARCH_LIST)
-        string(STRIP "${CUDA_ARCH_LIST}" CUDA_ARCH_LIST)
-        string(REPLACE " " ";" CUDA_ARCH_LIST "${CUDA_ARCH_LIST}")
-        string(REPLACE "." "" CUDA_ARCH_LIST "${CUDA_ARCH_LIST}")
-        set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
-        set_target_properties(ipc_toolkit PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
-    endif()
 endif()
 
 ################################################################################
@@ -211,6 +196,26 @@ endif()
 # IPC Toolkit
 include(ipc_toolkit)
 target_link_libraries(polyfem PUBLIC ipc::toolkit)
+
+if(IPC_TOOLKIT_WITH_CUDA OR POLYSOLVE_WITH_CUSOLVER)
+    set_target_properties(polyfem PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
+    if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.24.0")
+        set(CMAKE_CUDA_ARCHITECTURES "native")
+        set_target_properties(ipc_toolkit PROPERTIES CUDA_ARCHITECTURES "native")
+        set_target_properties(polysolve_linear PROPERTIES CUDA_ARCHITECTURES "native")
+
+    else()
+        include(FindCUDA/select_compute_arch)
+        CUDA_DETECT_INSTALLED_GPUS(CUDA_ARCH_LIST)
+        string(STRIP "${CUDA_ARCH_LIST}" CUDA_ARCH_LIST)
+        string(REPLACE " " ";" CUDA_ARCH_LIST "${CUDA_ARCH_LIST}")
+        string(REPLACE "." "" CUDA_ARCH_LIST "${CUDA_ARCH_LIST}")
+        set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
+        set_target_properties(ipc_toolkit PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+        set_target_properties(polysolve_linear PROPERTIES CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
+    endif()
+endif()
 
 # Threading
 if(POLYFEM_THREADING STREQUAL "CPP")
