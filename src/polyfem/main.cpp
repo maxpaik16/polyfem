@@ -13,9 +13,10 @@
 
 #include <polysolve/linear/Solver.hpp>
 
-#define HYPRE_WITH_MPI 1
+#ifdef HYPRE_WITH_MPI
 #include <mpi.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#endif
 
 using namespace polyfem;
 using namespace solver;
