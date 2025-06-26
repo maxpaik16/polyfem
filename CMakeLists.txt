@@ -353,6 +353,7 @@ target_link_libraries(polyfem PRIVATE polyfem::warnings)
 
 # Main executable
 if(POLYFEM_TOPLEVEL_PROJECT)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-pie")
     add_executable(${PROJECT_NAME}_bin src/polyfem/main.cpp)
 
     target_compile_features(${PROJECT_NAME}_bin PUBLIC cxx_std_14)

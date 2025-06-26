@@ -52,6 +52,9 @@ namespace polyfem::solver
 
 		std::function<void(const double)> post_subsolve = [](const double) {};
 
+		Eigen::MatrixXd test_vertices;
+		Eigen::MatrixXi test_elements;
+
 	protected:
 		std::vector<std::shared_ptr<AugmentedLagrangianForm>> alagr_forms;
 		const double initial_al_weight;

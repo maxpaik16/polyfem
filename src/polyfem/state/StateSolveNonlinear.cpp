@@ -288,6 +288,7 @@ namespace polyfem
 			args["solver"]["contact"]["CCD"]["broad_phase"],
 			args["solver"]["contact"]["CCD"]["tolerance"],
 			args["solver"]["contact"]["CCD"]["max_iterations"],
+			args["contact"]["solver_cutoff"],
 			optimization_enabled,
 			// Smooth Contact Form
 			args["contact"]["use_gcp_formulation"],
@@ -335,11 +336,14 @@ namespace polyfem
 		}
 
 		const int ndof = n_bases * mesh->dimension();
+		json linear_args = args["solver"]["linear"];
+		linear_args["solver"] = "Eigen::SimplicialLDLT";
 		solve_data.nl_problem = std::make_shared<NLProblem>(
 			ndof, periodic_bc, t, forms, solve_data.al_form,
 			polysolve::linear::Solver::create(args["solver"]["linear"], logger()), characteristic_length, characteristic_force_density, pure_mass, mesh->dimension());
 		solve_data.nl_problem->init(sol);
 		solve_data.nl_problem->update_quantities(t, sol);
+		solve_data.nl_problem->state_ = this;
 		// --------------------------------------------------------------------
 
 		stats.solver_info = json::array();
@@ -393,9 +397,15 @@ namespace polyfem
 		};
 
 		Eigen::MatrixXd prev_sol = sol;
+		al_solver.test_vertices = test_vertices;
+		al_solver.test_elements = test_elements;
 		al_solver.solve_al(nl_problem, sol,
 						   args["solver"]["augmented_lagrangian"]["nonlinear"], args["solver"]["linear"], units.characteristic_length());
 
+		Eigen::MatrixXd positions;
+		get_positions(positions);
+		al_solver.test_vertices = positions;
+		al_solver.test_elements = test_reduced_elements;
 		al_solver.solve_reduced(nl_problem, sol,
 								args["solver"]["nonlinear"], args["solver"]["linear"], units.characteristic_length());
 
