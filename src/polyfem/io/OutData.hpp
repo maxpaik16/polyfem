@@ -65,6 +65,8 @@ namespace polyfem::io
 
 			bool use_hdf5;
 
+			bool selected_nodes;
+
 			/// @brief initialize the flags based on the input args
 			/// @param[in] args input arguments used to set most of the flags
 			/// @param[in] is_mesh_linear if the mesh is linear

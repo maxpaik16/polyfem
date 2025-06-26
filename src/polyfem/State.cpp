@@ -1716,6 +1716,98 @@ namespace polyfem
 		timer.start();
 		logger().info("Solving {}", assembler->name());
 
+		if(assembler->is_linear())
+		{
+			build_mesh_matrices(test_vertices, test_elements);
+			test_boundary_nodes.clear();
+		}
+		else{
+			build_mesh_matrices(test_vertices, test_elements);
+			int dim = mesh->dimension();
+			std::vector<int> order_nodes;
+			for (int i=0;i<boundary_nodes.size();i=i+dim)
+			{
+				order_nodes.push_back(boundary_nodes[i]/dim);
+			}
+			std::sort(order_nodes.begin(), order_nodes.end());
+			test_boundary_nodes=order_nodes;
+
+			assert(test_elements.cols() == 4);
+			assert(dim == 3);
+
+			std::vector<int> full_to_reduced(test_vertices.size());
+			std::set<int> reduced_indices;
+			int boundary_count = 0;
+			for (int i = 0; i < test_vertices.size(); ++i)
+			{
+				if (!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),i))
+				{
+					full_to_reduced[i] = i - boundary_count;
+					reduced_indices.insert(i);
+				}
+				else
+				{
+					++boundary_count;
+				}
+			}
+
+			std::set<int> reduced_element_indices;
+			test_neighbors.resize(reduced_indices.size() * 3);
+			for (int i = 0; i < test_elements.rows(); ++i)
+			{
+				int v0 = test_elements(i, 0);
+				int v1 = test_elements(i, 1);
+				int v2 = test_elements(i, 2);
+				int v3 = test_elements(i, 3);
+
+				int reduced_count = reduced_indices.count(v0) + reduced_indices.count(v1) + reduced_indices.count(v2) + reduced_indices.count(v3);
+
+				if (reduced_count == 4)
+				{
+					reduced_element_indices.insert(i);
+				}
+
+				int v0_remapped = full_to_reduced[v0];
+				int v1_remapped = full_to_reduced[v1];
+				int v2_remapped = full_to_reduced[v2];
+				int v3_remapped = full_to_reduced[v3];
+
+				std::set<int> local_neighborhood =
+					{
+						3 * v0_remapped, 3 * v0_remapped + 1, 3 * v0_remapped + 2,
+						3 * v1_remapped, 3 * v1_remapped + 1, 3 * v1_remapped + 2,
+						3 * v2_remapped, 3 * v2_remapped + 1, 3 * v2_remapped + 2,
+						3 * v3_remapped, 3 * v3_remapped + 1, 3 * v3_remapped + 2,
+					};
+
+				test_neighbors[3 * v0_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v1_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v2_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v3_remapped].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v0_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v1_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v2_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v3_remapped + 1].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v0_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v1_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v2_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
+				test_neighbors[3 * v3_remapped + 2].insert(local_neighborhood.begin(), local_neighborhood.end());
+			}
+
+			test_reduced_elements.resize(reduced_element_indices.size(), 4);
+
+			int i_counter = 0;
+			for (auto &i : reduced_element_indices)
+			{
+				for (int j = 0; j < dim+1; ++j)
+				{
+					test_reduced_elements(i_counter, j) = full_to_reduced[test_elements(i, j)];
+				}
+				++i_counter;
+			}
+			// init_mesh_vertices(test_vertices);
+		}
+
 		init_solve(sol, pressure);
 
 		if (problem->is_time_dependent())
@@ -1774,7 +1866,7 @@ namespace polyfem
 
 		timer.stop();
 		timings.solving_time = timer.getElapsedTime();
-		logger().info(" took {}s", timings.solving_time);
+		logger().info(" solve took {}s", timings.solving_time);
 	}
 
 } // namespace polyfem

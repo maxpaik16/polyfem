@@ -284,6 +284,7 @@ namespace polyfem::mesh
 				state.args["solver"]["contact"]["CCD"]["broad_phase"],
 				state.args["solver"]["contact"]["CCD"]["tolerance"],
 				state.args["solver"]["contact"]["CCD"]["max_iterations"],
+				state.args["contact"]["solver_cutoff"],
 				/*enable_shape_derivatives=*/false,
 				// Smooth Contact Form
 				state.args["contact"]["use_gcp_formulation"],

@@ -92,6 +92,7 @@ namespace polyfem::solver
 		const ipc::BroadPhaseMethod broad_phase,
 		const double ccd_tolerance,
 		const long ccd_max_iterations,
+		const double solver_cutoff,
 		const bool enable_shape_derivatives,
 
 		// Smooth Contact Form
@@ -378,14 +379,14 @@ namespace polyfem::solver
 					contact_form = std::make_shared<SmoothContactForm>(
 						collision_mesh, dhat, avg_mass, alpha_t, alpha_n, use_adaptive_dhat, min_distance_ratio,
 						use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase, 
-						ccd_tolerance * units.characteristic_length(), ccd_max_iterations);
+						ccd_tolerance * units.characteristic_length(), ccd_max_iterations, solver_cutoff);
 				}
 				else
 				{
 					contact_form = std::make_shared<BarrierContactForm>(
 						collision_mesh, dhat, avg_mass, use_area_weighting, use_improved_max_operator, use_physical_barrier,
 						use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase, ccd_tolerance * units.characteristic_length(),
-						ccd_max_iterations);
+						ccd_max_iterations, solver_cutoff);
 				}
 
 				if (use_adaptive_barrier_stiffness)

@@ -51,7 +51,8 @@ namespace polyfem::solver
 					const bool enable_shape_derivatives,
 					const ipc::BroadPhaseMethod broad_phase_method,
 					const double ccd_tolerance,
-					const int ccd_max_iterations);
+					const int ccd_max_iterations,
+					const double solver_cutoff);
 		virtual ~ContactForm() = default;
 
 		virtual std::string name() const override { return "contact"; }
@@ -114,6 +115,9 @@ namespace polyfem::solver
 		double dhat() const { return dhat_; }
 
 		std::shared_ptr<ipc::BroadPhase> get_broad_phase() const { return broad_phase_; }
+		const ipc::NormalCollisions &collision_set() const { return collision_set_; }
+
+		mutable Eigen::VectorXd last_grad;
 
 	protected:
 		/// @brief Update the cached candidate set for the current solution
@@ -160,5 +164,7 @@ namespace polyfem::solver
 		bool use_cached_candidates_ = false;
 		/// @brief Cached candidate set for the current solution
 		ipc::Candidates candidates_;
+
+		const double solver_cutoff_;
 	};
 } // namespace polyfem::solver

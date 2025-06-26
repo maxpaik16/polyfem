@@ -4,6 +4,7 @@
 #include <polysolve/nonlinear/PostStepData.hpp>
 
 #include <filesystem>
+#include <set>
 
 namespace polyfem::solver
 {
@@ -139,6 +140,16 @@ namespace polyfem::solver
 
 		void set_output_dir(const std::string &output_dir) { output_dir_ = output_dir; }
 
+		bool get_problematic_indices(std::vector<std::set<int>> &bad_indices_) 
+		{
+			if (bad_indices.size() > 0)
+			{
+				bad_indices_ = bad_indices;
+				return true;
+			}
+			return false;
+		}
+
 		/// @brief sets the scale for the form
 		/// @param scale
 		void virtual set_scale(const double scale) { scale_ = scale; }
@@ -149,6 +160,8 @@ namespace polyfem::solver
 		double weight_ = 1; ///< weight of the form (e.g., AL penalty weight or Δt²)
 
 		bool enabled_ = true; ///< If true, the form is enabled
+
+		mutable std::vector<std::set<int>> bad_indices;
 
 		std::string output_dir_;
 

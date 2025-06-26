@@ -4,6 +4,8 @@
 #include <polyfem/assembler/PeriodicBoundary.hpp>
 #include <polyfem/solver/forms/lagrangian/AugmentedLagrangianForm.hpp>
 
+#include <polyfem/State.hpp>
+
 namespace polysolve::linear
 {
 	class Solver;
@@ -32,11 +34,15 @@ namespace polyfem::solver
 				  const std::vector<std::shared_ptr<Form>> &forms,
 				  const std::vector<std::shared_ptr<AugmentedLagrangianForm>> &penalty_forms,
 				  const std::shared_ptr<polysolve::linear::Solver> &solver);
+
 		virtual ~NLProblem() = default;
 
 		virtual double value(const TVector &x) override;
 		virtual void gradient(const TVector &x, TVector &gradv) override;
 		virtual void hessian(const TVector &x, THessian &hessian) override;
+
+		void get_problematic_indices(std::vector<std::set<int>> &bad_indices) override;
+		void get_dof_to_func_mapping(std::vector<int> &dof_to_func_mapping_out) override {dof_to_func_mapping_out = dof_to_func_mapping;}
 
 		virtual bool is_step_valid(const TVector &x0, const TVector &x1) override;
 		virtual bool is_step_collision_free(const TVector &x0, const TVector &x1) override;
@@ -67,6 +73,8 @@ namespace polyfem::solver
 
 		double normalize_forms() override;
 
+		State *state_;
+
 	protected:
 		const int full_size_; ///< Size of the full problem
 		int reduced_size_;    ///< Size of the reduced problem
@@ -83,6 +91,8 @@ namespace polyfem::solver
 		}
 
 		double t_;
+		unsigned int total_step = 0;
+		StiffnessMatrix last_hessian;
 
 	protected:
 		std::vector<std::shared_ptr<AugmentedLagrangianForm>> penalty_forms_;
@@ -94,6 +104,8 @@ namespace polyfem::solver
 		Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P_; ///< Permutation matrix of the QR decomposition of the constraints matrix
 		TVector Q1R1iTb_;                                            ///< Q1_ * (R1_.transpose().triangularView<Eigen::Upper>().solve(constraint_values_))
 		std::shared_ptr<polysolve::linear::Solver> solver_;
+
+		std::vector<int> dof_to_func_mapping;
 
 		std::shared_ptr<FullNLProblem> penalty_problem_;
 		int num_penalty_constraints_;

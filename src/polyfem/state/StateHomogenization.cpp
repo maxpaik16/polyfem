@@ -62,6 +62,7 @@ namespace polyfem
 			args["solver"]["contact"]["CCD"]["broad_phase"],
 			args["solver"]["contact"]["CCD"]["tolerance"],
 			args["solver"]["contact"]["CCD"]["max_iterations"],
+			args["contact"]["solver_cutoff"],
 			optimization_enabled == solver::CacheLevel::Derivatives,
 			// Smooth Contact Form
 			args["contact"]["use_gcp_formulation"],

@@ -4,6 +4,9 @@
 #include <polyfem/utils/MatrixUtils.hpp>
 #include <polyfem/utils/MatrixUtils.hpp>
 
+#include <fstream>
+#include <polyfem/solver/forms/ContactForm.hpp>
+
 #include <polyfem/utils/Logger.hpp>
 
 #include <polysolve/linear/Solver.hpp>
@@ -162,6 +165,7 @@ namespace polyfem::solver
 
 			timer.start();
 			StiffnessMatrix Q2tQ2 = Q2t_ * Q2_;
+			//TODO
 			solver_->analyze_pattern(Q2tQ2, Q2tQ2.rows());
 			solver_->factorize(Q2tQ2);
 			timer.stop();
@@ -519,6 +523,7 @@ namespace polyfem::solver
 	void NLProblem::hessian(const TVector &x, THessian &hessian)
 	{
 		FullNLProblem::hessian(reduced_to_full(x), hessian);
+		last_hessian = hessian;
 
 		if (full_size() != current_size())
 		{
@@ -529,6 +534,56 @@ namespace polyfem::solver
 			THessian tmp;
 			penalty_problem_->hessian(x, tmp);
 			hessian += tmp;
+		}
+	}
+
+	void NLProblem::get_problematic_indices(std::vector<std::set<int>> &bad_indices)
+	{
+		for (auto &f : forms_)
+		{
+			std::vector<std::set<int>> full_bad_indices;
+			if (f->get_problematic_indices(full_bad_indices))
+			{
+				const int dim = 3;
+				dof_to_func_mapping.clear();
+				bad_indices.resize(1);
+
+				if (current_size() == full_size())
+				{
+					for (int i = 0; i < current_size(); ++i)
+					{
+						if (full_bad_indices[0].count(i) > 0)
+						{
+							bad_indices[0].insert(i);
+						}
+						dof_to_func_mapping.push_back(i % dim);
+					}
+				}
+				else
+				{
+					Eigen::VectorXd mask(full_size());
+					for (int i = 0; i < full_size(); ++i)
+					{
+						mask(i) = full_bad_indices[0].count(i);
+					}
+
+					if (penalty_forms_.size() == 1 && penalty_forms_.front()->can_project())
+						penalty_forms_.front()->project_gradient(mask);
+					else
+						mask = Q2t_ * mask;
+
+					for (int i = 0; i < current_size(); ++i)
+					{
+						if (mask(i) > 0)
+						{
+							bad_indices[0].insert(i);
+						}
+						dof_to_func_mapping.push_back(i % dim);
+					}
+				}
+
+				return;
+			}
 		}
 	}
 
@@ -547,18 +602,75 @@ namespace polyfem::solver
 		if (penalty_problem_ && full_size() == current_size())
 			penalty_problem_->post_step(data);
 
-		// TODO: add me back
-		static int nsolves = 0;
-		if (data.iter_num == 0)
-			nsolves++;
-		// if (state && state->args["output"]["advanced"]["save_nl_solve_sequence"])
-		// {
-		// 	const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(data.x), state->mesh->dimension());
-		// 	io::OBJWriter::write(
-		// 		state->resolve_output_path(fmt::format("nonlinear_solve{:04d}_iter{:04d}.obj", nsolves, data.iter_num)),
-		// 		state->collision_mesh.displace_vertices(displacements),
-		// 		state->collision_mesh.edges(), state->collision_mesh.faces());
-		// }
+		if (state_->args["output"]["advanced"]["save_selected_nodes"])
+		{
+			std::ofstream grad_file(state_->resolve_output_path(fmt::format("grad_{:05d}.txt", total_step)));
+			grad_file << reduced_to_full(data.grad);
+			grad_file.close();
+
+			std::ofstream hess_norm_file(state_->resolve_output_path(fmt::format("hess_norm_{:05d}.txt", total_step)));
+			Eigen::VectorXd hess_norms(full_size_);
+			if (last_hessian.size() > 0)
+			{
+				for (int i = 0; i < last_hessian.cols(); ++i)
+				{
+					hess_norms(i) = last_hessian.col(i).norm();
+				}	
+			}
+			hess_norm_file << hess_norms;
+			hess_norm_file.close();
+
+
+			for (auto &f : forms_)
+			{
+				ContactForm* contact_form = dynamic_cast<ContactForm*>(f.get());
+				if (contact_form)
+				{
+					Eigen::VectorXd contact_grad = contact_form->last_grad;
+					if (contact_grad.size() > 0)
+					{
+						std::ofstream contact_grad_file(state_->resolve_output_path(fmt::format("contact_grad_{:05d}.txt", total_step)));
+						contact_grad_file << reduced_to_full(contact_grad);
+						contact_grad_file.close();
+					}
+				}
+			}
+		}
+
+		if (state_->args["output"]["advanced"]["save_selected_nodes"])
+		{
+			std::ofstream grad_file(state_->resolve_output_path(fmt::format("grad_{:05d}.txt", total_step)));
+			grad_file << reduced_to_full(data.grad);
+			grad_file.close();
+
+			std::ofstream hess_norm_file(state_->resolve_output_path(fmt::format("hess_norm_{:05d}.txt", total_step)));
+			Eigen::VectorXd hess_norms(full_size_);
+			if (last_hessian.size() > 0)
+			{
+				for (int i = 0; i < last_hessian.cols(); ++i)
+				{
+					hess_norms(i) = last_hessian.col(i).norm();
+				}	
+			}
+			hess_norm_file << hess_norms;
+			hess_norm_file.close();
+
+
+			for (auto &f : forms_)
+			{
+				ContactForm* contact_form = dynamic_cast<ContactForm*>(f.get());
+				if (contact_form)
+				{
+					Eigen::VectorXd contact_grad = contact_form->last_grad;
+					if (contact_grad.size() > 0)
+					{
+						std::ofstream contact_grad_file(state_->resolve_output_path(fmt::format("contact_grad_{:05d}.txt", total_step)));
+						contact_grad_file << reduced_to_full(contact_grad);
+						contact_grad_file.close();
+					}
+				}
+			}
+		}
 	}
 
 	NLProblem::TVector NLProblem::full_to_reduced(const TVector &full) const
@@ -576,7 +688,7 @@ namespace polyfem::solver
 
 #ifndef NDEBUG
 		StiffnessMatrix Q2tQ2 = Q2t_ * Q2_;
-		// std::cout << "err " << (Q2tQ2 * reduced - rhs).norm() << std::endl;
+		std::cout << "err " << (Q2tQ2 * reduced - rhs).norm() << std::endl;
 		assert((Q2tQ2 * reduced - rhs).norm() < 1e-8);
 #endif
 

@@ -1216,7 +1216,8 @@
             "min_distance_ratio",
             "use_adaptive_dhat",
             "periodic",
-            "adhesion"
+            "adhesion",
+            "solver_cutoff"
         ],
         "doc": "Contact handling parameters."
     },
@@ -1280,6 +1281,12 @@
         "min": 0,
         "type": "float",
         "doc": "Friction smoothing parameter."
+    },
+    {
+        "pointer": "/contact/solver_cutoff",
+        "default": 0.0,
+        "type": "float",
+        "doc": "Percentile cutoff for marking contact nodes"
     },
     {
         "pointer": "/contact/friction_coefficient",
@@ -2610,7 +2617,8 @@
             "save_ccd_debug_meshes",
             "save_time_sequence",
             "save_nl_solve_sequence",
-            "spectrum"
+            "spectrum",
+            "save_selected_nodes"
         ],
         "doc": "Additional output options"
     },
@@ -2679,6 +2687,12 @@
         "default": false,
         "type": "bool",
         "doc": "exports the spectrum of the matrix in the output JSON. Works only if POLYSOLVE_WITH_SPECTRA is enabled"
+    },
+    {
+        "pointer": "/output/advanced/save_selected_nodes",
+        "default": false,
+        "type": "bool",
+        "doc": "Whether or not to save selected nodes in dss solve (and some additional info)"
     },
     {
         "pointer": "/input",

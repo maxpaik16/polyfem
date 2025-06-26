@@ -75,6 +75,21 @@ namespace polyfem
 				solve_tensor_nonlinear(sol, t);
 			}
 
+			{
+				Eigen::MatrixXd sol_reshaped(test_vertices.rows(), test_vertices.cols());
+				Eigen::MatrixXd ori_vertices;
+				Eigen::MatrixXi ori_faces;
+				build_mesh_matrices(ori_vertices,ori_faces);
+				int count=0;
+				for (size_t i = 0; i < test_vertices.rows(); i++)
+					for (size_t j = 0; j < test_vertices.cols(); j++)
+					{
+						sol_reshaped(i,j)=sol(count);
+						count++;
+					}
+				test_vertices=ori_vertices+sol_reshaped;
+			}
+
 			if (remesh_enabled)
 			{
 				if (energy_csv)
@@ -260,6 +275,7 @@ namespace polyfem
 			args["solver"]["contact"]["CCD"]["broad_phase"],
 			args["solver"]["contact"]["CCD"]["tolerance"],
 			args["solver"]["contact"]["CCD"]["max_iterations"],
+			args["contact"]["solver_cutoff"],
 			optimization_enabled == solver::CacheLevel::Derivatives,
 			// Smooth Contact Form
 			args["contact"]["use_gcp_formulation"],
@@ -297,11 +313,14 @@ namespace polyfem
 		// Initialize nonlinear problems
 
 		const int ndof = n_bases * mesh->dimension();
+		json linear_args = args["solver"]["linear"];
+		linear_args["solver"] = "Eigen::SimplicialLDLT";
 		solve_data.nl_problem = std::make_shared<NLProblem>(
 			ndof, periodic_bc, t, forms, solve_data.al_form,
-			polysolve::linear::Solver::create(args["solver"]["linear"], logger()));
+			polysolve::linear::Solver::create(linear_args, logger()));
 		solve_data.nl_problem->init(sol);
 		solve_data.nl_problem->update_quantities(t, sol);
+		solve_data.nl_problem->state_ = this;
 		// --------------------------------------------------------------------
 
 		stats.solver_info = json::array();
@@ -355,9 +374,15 @@ namespace polyfem
 		};
 
 		Eigen::MatrixXd prev_sol = sol;
+		al_solver.test_vertices = test_vertices;
+		al_solver.test_elements = test_elements;
 		al_solver.solve_al(nl_problem, sol,
 						   args["solver"]["augmented_lagrangian"]["nonlinear"], args["solver"]["linear"], units.characteristic_length());
 
+		Eigen::MatrixXd positions;
+		get_positions(positions);
+		al_solver.test_vertices = positions;
+		al_solver.test_elements = test_reduced_elements;
 		al_solver.solve_reduced(nl_problem, sol,
 								args["solver"]["nonlinear"], args["solver"]["linear"], units.characteristic_length());
 

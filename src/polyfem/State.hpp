@@ -293,6 +293,36 @@ namespace polyfem
 		//---------------------------------------------------
 
 	public:
+		Eigen::MatrixXd test_vertices;
+		Eigen::MatrixXi test_elements;
+		Eigen::MatrixXi test_reduced_elements;
+		std::vector<int> test_boundary_nodes;
+		std::vector<std::set<int>> test_neighbors;
+
+		void get_positions(Eigen::MatrixXd &positions)
+		{
+
+			if (test_boundary_nodes.empty())
+			{
+				positions = test_vertices;
+			}
+			else
+			{
+				std::vector<int> order_nodes = test_boundary_nodes;
+				//std::sort(order_nodes.begin(), order_nodes.end());
+				Eigen::MatrixXd out_vertices;
+				std::vector<int> keep;
+				for (int i = 0; i < test_vertices.rows(); i++)
+				{
+					if (!std::binary_search(test_boundary_nodes.begin(), test_boundary_nodes.end(),i))
+					{
+						keep.push_back(i);
+					}
+				}
+				out_vertices = test_vertices(keep, Eigen::indexing::all);
+				positions = out_vertices;
+			}
+		}
 		/// solves the problems
 		/// @param[out] sol solution
 		/// @param[out] pressure pressure

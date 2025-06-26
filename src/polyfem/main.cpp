@@ -11,6 +11,14 @@
 #include <polyfem/utils/Logger.hpp>
 #include <polyfem/io/YamlToJson.hpp>
 
+
+#include <polysolve/linear/Solver.hpp>
+
+#ifdef HYPRE_WITH_MPI
+#include <mpi.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#endif
+
 using namespace polyfem;
 using namespace solver;
 
@@ -72,6 +80,24 @@ int main(int argc, char **argv)
 {
 	using namespace polyfem;
 
+#ifdef HYPRE_WITH_MPI
+	int done_already;
+
+    MPI_Initialized(&done_already);
+    int myid, num_procs;
+    if (!done_already)
+    {
+        // Initialize MPI 
+        int argc = 1;
+        char name[] = "";
+        char *argv[] = {name};
+        char **argvv = &argv[0];
+        MPI_Init(&argc, &argvv);
+        MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+        MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+    }
+#endif
+
 	CLI::App command_line{"polyfem"};
 
 	command_line.ignore_case();
@@ -119,6 +145,7 @@ int main(int argc, char **argv)
 	CLI11_PARSE(command_line, argc, argv);
 
 	json in_args = json({});
+	int return_val;
 
 	if (!json_file.empty() || !yaml_file.empty())
 	{
@@ -127,15 +154,75 @@ int main(int argc, char **argv)
 		if (!ok)
 			log_and_throw_error(fmt::format("unable to open {} file", json_file));
 
+#ifdef HYPRE_WITH_MPI
+		if (myid != 0)
+		{
+			std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt(fmt::format("solver-child-{}", myid));
+			logger->set_level(spdlog::level::off);
+
+			// create solver
+			auto solver = polysolve::linear::Solver::create(in_args["solver"]["linear"]["solver"][0], "");
+			solver->logger = logger.get();
+
+			solver->set_parameters(in_args["solver"]["linear"]);
+
+			while (true)
+			{
+				Eigen::SparseMatrix<double> A;
+				Eigen::SparseMatrix<double, Eigen::RowMajor> A_row_maj;
+				Eigen::VectorXd b, x;
+				int rows, cols, nnzs;
+
+				MPI_Bcast(&rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+				MPI_Bcast(&cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+				MPI_Bcast(&nnzs, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+				logger->trace("Rows: {}, Cols: {}, NNZs: {}", rows, cols, nnzs);
+
+				A_row_maj.resize(rows, cols);
+				A_row_maj.reserve(nnzs);
+
+				MPI_Bcast(A_row_maj.valuePtr(), nnzs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+				MPI_Bcast(A_row_maj.innerIndexPtr(), nnzs, MPI_INT, 0, MPI_COMM_WORLD);
+				MPI_Bcast(A_row_maj.outerIndexPtr(), rows+1, MPI_INT, 0, MPI_COMM_WORLD);
+
+				A = A_row_maj;
+
+				logger->trace("A Rows: {}, A Cols: {}, A NNZs: {}", A.rows(), A.cols(), A.nonZeros());
+
+				int start_factorize, start_solve;
+
+				MPI_Bcast(&start_factorize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+				solver->factorize(A);
+				b.resize(rows);
+				MPI_Bcast(b.data(), rows, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+				x.resize(rows); 
+				MPI_Bcast(x.data(), rows, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+				MPI_Bcast(&start_solve, 1, MPI_INT, 0, MPI_COMM_WORLD);
+				solver->solve(b, x);
+			}
+		}
+#endif 
+
 		if (in_args.contains("states"))
-			return optimization_simulation(command_line, max_threads, is_strict, log_level, in_args);
+			return_val = optimization_simulation(command_line, max_threads, is_strict, log_level, in_args);
 		else
-			return forward_simulation(command_line, "", output_dir, max_threads,
+			return_val = forward_simulation(command_line, "", output_dir, max_threads,
 									  is_strict, fallback_solver, log_level, in_args);
 	}
 	else
-		return forward_simulation(command_line, hdf5_file, output_dir, max_threads,
+		return_val = forward_simulation(command_line, hdf5_file, output_dir, max_threads,
 								  is_strict, fallback_solver, log_level, in_args);
+
+
+#ifdef HYPRE_WITH_MPI
+	int finalized;
+    MPI_Finalized(&finalized);
+    if (!finalized)
+        MPI_Finalize();
+#endif
+
+	return return_val;
 }
 
 int forward_simulation(const CLI::App &command_line,
