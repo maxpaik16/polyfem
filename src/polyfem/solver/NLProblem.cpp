@@ -104,6 +104,7 @@ namespace polyfem::solver
 	{
 		setup_constraints();
 		use_reduced_size();
+		reduced_to_full_func = [this] (const Eigen::VectorXd &r) {return this->reduced_to_full(r);};
 	}
 
 	NLProblem::NLProblem(
@@ -121,6 +122,7 @@ namespace polyfem::solver
 	{
 		setup_constraints();
 		use_reduced_size();
+		reduced_to_full_func = [this] (const Eigen::VectorXd &r) {return this->reduced_to_full(r);};
 	}
 
 	double NLProblem::normalize_forms()
@@ -671,6 +673,16 @@ namespace polyfem::solver
 				}
 			}
 		}
+
+		if (state_->args["output"]["advanced"]["save_nl_solve_sequence"])
+		{
+			const Eigen::MatrixXd displacements = utils::unflatten(reduced_to_full(data.x), state_->mesh->dimension());
+			io::OBJWriter::write(
+				state_->resolve_output_path(fmt::format("nonlinear_solve_iter{:03d}.obj", total_step)),
+				state_->collision_mesh.displace_vertices(displacements),
+				state_->collision_mesh.edges(), state_->collision_mesh.faces());
+		}
+		++total_step;
 	}
 
 	NLProblem::TVector NLProblem::full_to_reduced(const TVector &full) const

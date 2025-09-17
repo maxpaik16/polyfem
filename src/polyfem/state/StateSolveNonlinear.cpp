@@ -321,6 +321,7 @@ namespace polyfem
 		solve_data.nl_problem->init(sol);
 		solve_data.nl_problem->update_quantities(t, sol);
 		solve_data.nl_problem->state_ = this;
+		solve_data.nl_problem->projection_setting = args["solver"]["projection_setting"];
 		// --------------------------------------------------------------------
 
 		stats.solver_info = json::array();

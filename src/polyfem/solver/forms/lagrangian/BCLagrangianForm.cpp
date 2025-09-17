@@ -80,6 +80,9 @@ namespace polyfem::solver
 					}
 				}
 			}
+			logger().trace("Lumped mass matrix rows, cols, nnzs: {}, {}, {}", masked_lumped_mass_.rows(), masked_lumped_mass_.cols(), masked_lumped_mass_.nonZeros());
+			logger().trace("Lumped mass matrix min, max: {}, {}", min_diag, max_diag);
+			logger().trace("Lumped mass matrix mean: {}", masked_lumped_mass_.diagonal().head(n_dofs_).mean());
 			if (max_diag <= 0 || min_diag <= 0 || min_diag / max_diag < 1e-16)
 			{
 				logger().warn("Lumped mass matrix ill-conditioned. Setting lumped mass matrix to identity.");
@@ -163,6 +166,12 @@ namespace polyfem::solver
 		const Eigen::VectorXd dist = A_ * x - b_;
 		const double L_penalty = -lagr_mults_.transpose() * masked_lumped_mass_sqrt_ * dist;
 		const double A_penalty = 0.5 * dist.transpose() * masked_lumped_mass_ * dist;
+
+		//logger().trace("L_weight: {}", L_weight());
+		//logger().trace("L_penalty: {}", L_penalty);
+		//logger().trace("A_weight: {}", A_weight());
+		//logger().trace("A_penalty: {}", A_penalty);
+		//logger().trace("Dist min, max, mean, norm: {} {} {} {}", dist.minCoeff(), dist.maxCoeff(), dist.sum() / dist.size(), dist.norm());
 
 		return L_weight() * L_penalty + A_weight() * A_penalty;
 	}

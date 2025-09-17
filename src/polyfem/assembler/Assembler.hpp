@@ -124,6 +124,18 @@ namespace polyfem::assembler
 			utils::MatrixCache &mat_cache,
 			StiffnessMatrix &grad) const { log_and_throw_error("Assemble hessian not implemented by {}!", name()); }
 
+		mutable std::vector<std::set<int>> global_element_indices_;
+		void set_global_element_indices(std::vector<std::set<int>> &global_element_indices) const
+		{
+			global_element_indices = global_element_indices_;
+		}
+
+		mutable std::vector<Eigen::MatrixXd> local_hessians_;
+		void get_local_hessians(std::vector<Eigen::MatrixXd> &local_hessians)
+		{
+			local_hessians = local_hessians_;
+		}
+
 		// plotting (eg von mises), assembler is the name of the formulation
 		virtual void compute_scalar_value(
 			const OutputData &data,

@@ -130,6 +130,42 @@ namespace polyfem::solver
 			collision_set_.build(
 				collision_mesh_, displaced_surface, dhat_, dmin_, broad_phase_method_);
 		cached_displaced_surface = displaced_surface;
+
+		const size_t num_vertices = collision_mesh_.num_vertices();
+
+		const Eigen::MatrixXi &E = collision_mesh_.edges();
+		const Eigen::MatrixXi &F = collision_mesh_.faces();
+
+		auto storage = utils::create_thread_storage<Eigen::VectorXd>(Eigen::VectorXd::Zero(num_vertices));
+
+		global_element_indices.clear();
+		global_element_indices.resize(collision_set_.size());
+
+		utils::maybe_parallel_for(collision_set_.size(), [&](int start, int end, int thread_id) {
+			Eigen::VectorXd &local_storage = utils::get_local_thread_storage(storage, thread_id);
+
+			for (size_t i = start; i < end; i++)
+			{
+				const int n_v = collision_set_[i].num_vertices();
+				const std::array<long, 4> vis = collision_set_[i].vertex_ids(E, F);
+				for (int j = 0; j < n_v; j++)
+				{
+					for (int d = 0; d < collision_mesh_.dim(); ++d)
+					{
+						global_element_indices[i].insert(collision_mesh_.dim() * collision_mesh_.to_full_vertex_id(vis[j]) + d);
+					}	
+				}
+			}
+		});
+		std::cout << "CONTACT ELEMENTS" << std::endl;
+		for (auto el : global_element_indices)
+		{
+			for (auto i : el)
+			{
+				std::cout << i << " ";
+			}
+			std::cout << std::endl;
+		}
 	}
 
 	double ContactForm::value_unweighted(const Eigen::VectorXd &x) const
@@ -240,7 +276,7 @@ namespace polyfem::solver
 
 	void ContactForm::solution_changed(const Eigen::VectorXd &new_x)
 	{
-		update_collision_set(compute_displaced_surface(new_x));
+		update_collision_set(compute_displaced_surface(new_x));		
 	}
 
 	double ContactForm::max_step_size(const Eigen::VectorXd &x0, const Eigen::VectorXd &x1) const

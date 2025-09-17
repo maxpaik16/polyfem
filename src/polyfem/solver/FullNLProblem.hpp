@@ -47,6 +47,8 @@ namespace polyfem::solver
 		}
 
 		virtual double normalize_forms();
+		bool project_to_psd_ = false;
+		int projection_setting = 0;
 
 	protected:
 		std::vector<std::shared_ptr<Form>> forms_;

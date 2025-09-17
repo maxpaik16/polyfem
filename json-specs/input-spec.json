@@ -1457,7 +1457,8 @@
             "augmented_lagrangian",
             "contact",
             "rayleigh_damping",
-            "advanced"
+            "advanced",
+            "projection_setting"
         ],
         "doc": "The settings for the solver including linear solver, nonlinear solver, and some advanced options."
     },
@@ -1467,6 +1468,13 @@
         "type": "int",
         "min": 0,
         "doc": "Maximum number of threads used; 0 is unlimited."
+    },
+    {
+        "pointer": "/solver/projection_setting",
+        "default": 0,
+        "type": "int",
+        "min": 0,
+        "doc": "Setting to use for projection"
     },
     {
         "pointer": "/solver/linear/adjoint_solver",

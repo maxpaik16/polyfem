@@ -101,3 +101,7 @@ run.py
 clean-examples/**
 trash-compactor-octocat/**
 two-mats/**
+poster-workspace/**
+spd-analysis/**
+mfem-ex2/**
+trash-compactor-octocat-orig/**
