@@ -672,6 +672,12 @@ namespace polyfem::assembler
 		igl::Timer timer;
 		timer.start();
 
+		global_element_indices_.clear();
+		global_element_indices_.resize(n_bases);
+
+		local_hessians_.clear();
+		local_hessians_.resize(n_bases);
+
 		maybe_parallel_for(n_bases, [&](int start, int end, int thread_id) {
 			LocalThreadMatStorage &local_storage = get_local_thread_storage(storage, thread_id);
 
@@ -687,6 +693,7 @@ namespace polyfem::assembler
 				const int n_loc_bases = int(vals.basis_values.size());
 
 				auto stiffness_val = assemble_hessian(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
+				local_hessians_[e] = stiffness_val;
 				assert(stiffness_val.rows() == n_loc_bases * size());
 				assert(stiffness_val.cols() == n_loc_bases * size());
 
@@ -708,7 +715,6 @@ namespace polyfem::assembler
 				// 	local_storage.entries.emplace_back(0, 0, std::nan(""));
 				// 	break;
 				// }
-
 				for (int i = 0; i < n_loc_bases; ++i)
 				{
 					const auto &global_i = vals.basis_values[i].global;
@@ -727,6 +733,7 @@ namespace polyfem::assembler
 								for (size_t ii = 0; ii < global_i.size(); ++ii)
 								{
 									const auto gi = global_i[ii].index * size() + m;
+									global_element_indices_[e].insert(gi);
 									const auto wi = global_i[ii].val;
 
 									for (size_t jj = 0; jj < global_j.size(); ++jj)

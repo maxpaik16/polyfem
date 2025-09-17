@@ -15,6 +15,7 @@
 
 
 #include <polysolve/linear/Solver.hpp>
+#include <HYPRE_struct_ls.h>
 
 #ifdef HYPRE_WITH_MPI
 #include <mpi.h>
@@ -101,6 +102,7 @@ int main(int argc, char **argv)
         MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
     }
 #endif
+	HYPRE_Initialize();
 
 	CLI::App command_line{"polyfem"};
 
@@ -231,6 +233,7 @@ int main(int argc, char **argv)
     if (!finalized)
         MPI_Finalize();
 #endif
+	HYPRE_Finalize();
 
 	return return_val;
 }
