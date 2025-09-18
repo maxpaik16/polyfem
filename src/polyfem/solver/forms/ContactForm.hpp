@@ -115,7 +115,6 @@ namespace polyfem::solver
 		double dhat() const { return dhat_; }
 
 		std::shared_ptr<ipc::BroadPhase> get_broad_phase() const { return broad_phase_; }
-		const ipc::NormalCollisions &collision_set() const { return collision_set_; }
 
 		mutable Eigen::VectorXd last_grad;
 

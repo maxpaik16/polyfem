@@ -19,7 +19,8 @@ namespace polyfem::solver
 					const bool enable_shape_derivatives,
 					const ipc::BroadPhaseMethod broad_phase_method,
 					const double ccd_tolerance,
-					const int ccd_max_iterations);
+					const int ccd_max_iterations,
+					double solver_cutoff);
 
 		virtual std::string name() const override { return "barrier-contact"; }
 

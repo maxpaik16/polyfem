@@ -27,7 +27,7 @@ cmake_dependent_option(LIBIGL_RESTRICTED_TRIANGLE "Build target igl_restricted::
 include(eigen)
 
 include(CPM)
-if(POLYSOLVE_WITH_ACCELERATE)
+if(true)
     find_package(Patch REQUIRED)
     set(PATCH_COMMAND_ARGS "-rnN")
 

@@ -22,7 +22,8 @@ namespace polyfem::solver
 					const bool enable_shape_derivatives,
 					const ipc::BroadPhaseMethod broad_phase_method,
 					const double ccd_tolerance,
-					const int ccd_max_iterations): ContactForm(collision_mesh, dhat, avg_mass, use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase_method, ccd_tolerance, ccd_max_iterations), barrier_potential_(dhat, use_physical_barrier)
+					const int ccd_max_iterations,
+					double solver_cutoff): ContactForm(collision_mesh, dhat, avg_mass, use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase_method, ccd_tolerance, ccd_max_iterations, solver_cutoff), barrier_potential_(dhat, use_physical_barrier)
     {
 		// collision_set_.set_use_convergent_formulation(use_convergent_formulation);
 		collision_set_.set_use_area_weighting(use_area_weighting);
@@ -171,6 +172,35 @@ namespace polyfem::solver
 	{
 		gradv = barrier_potential_.gradient(collision_set_, collision_mesh_, compute_displaced_surface(x));
 		gradv = collision_mesh_.to_full_dof(gradv);
+
+		last_grad = gradv;
+		Eigen::VectorXd grad_copy = gradv.cwiseAbs();
+		std::sort(grad_copy.data(), grad_copy.data()+grad_copy.size());
+		logger().debug("Max contact force unweighted: {}, Min contact force unweighted: {}", grad_copy.maxCoeff(), grad_copy.minCoeff());
+		const int index = grad_copy.size() * solver_cutoff_;
+		const double cutoff = grad_copy(index);
+		bad_indices.clear();
+		bad_indices.resize(1);
+		for (int i = 0; i < gradv.size(); ++i)
+		{
+			if (abs(gradv(i)) > 0)// && abs(gradv(i)) >= cutoff)
+			{
+				bad_indices[0].insert(i);
+				if (i % 3 == 0)
+				{
+					bad_indices[0].insert(i + 1);
+					bad_indices[0].insert(i + 2);
+				} else if (i % 3 == 1)
+				{
+					bad_indices[0].insert(i - 1);
+					bad_indices[0].insert(i + 1);
+				} else
+				{
+					bad_indices[0].insert(i - 2);
+					bad_indices[0].insert(i - 1);
+				};
+			}	
+		}
 	}
 
 	void BarrierContactForm::second_derivative_unweighted(const Eigen::VectorXd &x, StiffnessMatrix &hessian) const
