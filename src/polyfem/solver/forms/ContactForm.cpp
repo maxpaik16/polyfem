@@ -59,6 +59,11 @@ namespace polyfem::solver
 		return collision_mesh_.displace_vertices(utils::unflatten(x, collision_mesh_.dim()));
 	}
 
+	void ContactForm::solution_changed(const Eigen::VectorXd &new_x)
+	{
+		update_collision_set(compute_displaced_surface(new_x));		
+	}
+
 	double ContactForm::max_step_size(const Eigen::VectorXd &x0, const Eigen::VectorXd &x1) const
 	{
 		// Extract surface only

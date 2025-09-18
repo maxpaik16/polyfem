@@ -149,7 +149,7 @@ namespace polyfem::solver
 					hessian += tmp;
 					break;
 				case 1:
-					if (f->name() == "contact")
+					if (f->name() == "barrier-contact")
 					{
 						f->set_project_to_psd(true);
 						f->second_derivative(x, tmp);
