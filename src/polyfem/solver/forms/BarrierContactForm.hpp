@@ -16,17 +16,18 @@ namespace polyfem::solver
 
 	public:
 		BarrierContactForm(const ipc::CollisionMesh &collision_mesh,
-						   const double dhat,
-						   const double avg_mass,
-						   const bool use_area_weighting,
-						   const bool use_improved_max_operator,
-						   const bool use_physical_barrier,
-						   const bool use_adaptive_barrier_stiffness,
-						   const bool is_time_dependent,
-						   const bool enable_shape_derivatives,
-						   const ipc::BroadPhaseMethod broad_phase_method,
-						   const double ccd_tolerance,
-						   const int ccd_max_iterations);
+					const double dhat,
+					const double avg_mass,
+					const bool use_area_weighting,
+					const bool use_improved_max_operator,
+					const bool use_physical_barrier,
+					const bool use_adaptive_barrier_stiffness,
+					const bool is_time_dependent,
+					const bool enable_shape_derivatives,
+					const ipc::BroadPhaseMethod broad_phase_method,
+					const double ccd_tolerance,
+					const int ccd_max_iterations,
+					double solver_cutoff = 1.0);
 
 		virtual std::string name() const override { return "barrier-contact"; }
 
