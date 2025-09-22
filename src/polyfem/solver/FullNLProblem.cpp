@@ -173,12 +173,18 @@ namespace polyfem::solver
 					
 					hessian += tmp;
 					break;
+				case 3:
+					f->dofs_to_project = dofs_to_project;
+					f->set_project_to_psd(false);
+					f->second_derivative(x, tmp);
+					hessian += tmp;
+					break;
 				default:
 					assert(false);
 			}	
 		}
 
-		if (project_to_psd_ && projection_setting > 0 && global_element_indices.size() > 0)
+		if (project_to_psd_ && projection_setting > 0 && projection_setting != 3 && global_element_indices.size() > 0)
 		{
 			std::set<int> elements_to_project;
 			Eigen::MatrixXd dense_hessian = hessian;

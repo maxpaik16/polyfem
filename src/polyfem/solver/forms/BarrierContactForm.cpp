@@ -212,6 +212,7 @@ namespace polyfem::solver
 			psd_projection_method = ipc::PSDProjectionMethod::NONE;
 		}
 
+		barrier_potential_.dofs_to_project = dofs_to_project;
 		hessian = barrier_potential_.hessian(collision_set_, collision_mesh_, compute_displaced_surface(x), psd_projection_method);
 		hessian = collision_mesh_.to_full_dof(hessian);
 	}

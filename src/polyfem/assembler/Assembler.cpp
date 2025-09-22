@@ -697,8 +697,30 @@ namespace polyfem::assembler
 				assert(stiffness_val.rows() == n_loc_bases * size());
 				assert(stiffness_val.cols() == n_loc_bases * size());
 
-				if (project_to_psd)
+				for (int i = 0; i < n_loc_bases; ++i)
+				{
+					const auto &global_i = vals.basis_values[i].global;
+					for (int m = 0; m < size(); ++m)
+					{
+						for (size_t ii = 0; ii < global_i.size(); ++ii)
+						{
+							const auto gi = global_i[ii].index * size() + m;
+							global_element_indices_[e].insert(gi);
+						}
+					}
+				}
+
+				std::set<int> intersection;
+				std::set_intersection(
+					global_element_indices_[e].begin(), global_element_indices_[e].end(),
+					dofs_to_project.begin(), dofs_to_project.end(),
+					std::inserter(intersection, intersection.begin())
+				); 
+
+				if ((dofs_to_project.size() > 0 && intersection.size() > 0) || project_to_psd)
+				{
 					stiffness_val = ipc::project_to_psd(stiffness_val);
+				} 
 
 				// bool has_nan = false;
 				// for(int k = 0; k < stiffness_val.size(); ++k)
@@ -733,7 +755,6 @@ namespace polyfem::assembler
 								for (size_t ii = 0; ii < global_i.size(); ++ii)
 								{
 									const auto gi = global_i[ii].index * size() + m;
-									global_element_indices_[e].insert(gi);
 									const auto wi = global_i[ii].val;
 
 									for (size_t jj = 0; jj < global_j.size(); ++jj)

@@ -155,6 +155,7 @@ namespace polyfem::solver
 		void virtual set_scale(const double scale) { scale_ = scale; }
 
 		mutable std::vector<std::set<int>> global_element_indices;
+		mutable std::set<int> dofs_to_project;
 
 	protected:
 		bool project_to_psd_ = false; ///< If true, the form's second derivative is projected to be positive semidefinite

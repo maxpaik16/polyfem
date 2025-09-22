@@ -63,6 +63,8 @@ namespace polyfem::assembler
 		int size() const { return size_; }
 		virtual void set_size(const int size) { size_ = size; }
 
+		mutable std::set<int> dofs_to_project;
+
 		// assembler stiffness matrix, is the mesh is volumetric, number of bases and bases (FE and geom)
 		// gbases and bases can be the same (ie isoparametric)
 		virtual void assemble(
@@ -308,6 +310,7 @@ namespace polyfem::assembler
 		virtual double compute_energy(const NonLinearAssemblerData &data) const = 0;
 		virtual Eigen::VectorXd assemble_gradient(const NonLinearAssemblerData &data) const = 0;
 		virtual Eigen::MatrixXd assemble_hessian(const NonLinearAssemblerData &data) const = 0;
+
 	};
 
 	class ElasticityAssembler : virtual public Assembler
