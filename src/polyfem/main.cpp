@@ -17,6 +17,7 @@
 #include <polysolve/linear/Solver.hpp>
 #include <HYPRE_struct_ls.h>
 
+#define HYPRE_WITH_MPI 1
 #ifdef HYPRE_WITH_MPI
 #include <mpi.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -165,6 +166,7 @@ int main(int argc, char **argv)
 		{
 			std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_mt(fmt::format("solver-child-{}", myid));
 			logger->set_level(spdlog::level::off);
+			utils::apply_common_params(in_args);
 
 			// create solver
 			auto solver = polysolve::linear::Solver::create(in_args["solver"]["linear"]["solver"][0], "");
@@ -190,7 +192,7 @@ int main(int argc, char **argv)
 
 				MPI_Bcast(A_row_maj.valuePtr(), nnzs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 				MPI_Bcast(A_row_maj.innerIndexPtr(), nnzs, MPI_INT, 0, MPI_COMM_WORLD);
-				MPI_Bcast(A_row_maj.outerIndexPtr(), rows+1, MPI_INT, 0, MPI_COMM_WORLD);
+				MPI_Bcast(A_row_maj.outerIndexPtr(), rows + 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 				A = A_row_maj;
 

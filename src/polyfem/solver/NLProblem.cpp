@@ -596,7 +596,7 @@ namespace polyfem::solver
 			res += penalty_problem_->value(x);
 		}
 
-		return res;
+		return weight * res;
 	}
 
 	void NLProblem::gradient(const TVector &x, TVector &grad)
@@ -616,6 +616,7 @@ namespace polyfem::solver
 			penalty_problem_->gradient(x, tmp);
 			grad += tmp;
 		}
+		grad *= weight;
 	}
 
 	void NLProblem::hessian(const TVector &x, THessian &hessian)
@@ -633,6 +634,7 @@ namespace polyfem::solver
 			penalty_problem_->hessian(x, tmp);
 			hessian += tmp;
 		}
+		hessian *= weight;
 	}
 
 	void NLProblem::get_problematic_indices(std::vector<std::set<int>> &bad_indices)
