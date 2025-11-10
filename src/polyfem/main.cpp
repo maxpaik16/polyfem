@@ -230,6 +230,7 @@ int main(int argc, char **argv)
 
 
 #ifdef HYPRE_WITH_MPI
+	MPI_Abort(MPI_COMM_WORLD, 0);
 	int finalized;
     MPI_Finalized(&finalized);
     if (!finalized)

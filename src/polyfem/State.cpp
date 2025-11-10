@@ -1694,8 +1694,8 @@ namespace polyfem
 
 		if(assembler->is_linear())
 		{
-			build_mesh_matrices(test_vertices, test_elements);
-			test_boundary_nodes.clear();
+			//build_mesh_matrices(test_vertices, test_elements);
+			//test_boundary_nodes.clear();
 		}
 		else{
 			build_mesh_matrices(test_vertices, test_elements);

@@ -104,6 +104,15 @@ two-mats/**
 poster-workspace/**
 spd-analysis/**
 mfem-ex2/**
-trash-compactor-octocat-orig/**diff-data/
+trash-compactor-octocat-orig/**
+squished-beam/**
+two-blocks/** 
+iron/**
+adhesion/**
+stokes/**
+higher-order/**
+laplace/**
+ratios/**
+new-build/**diff-data/
 pref-data/
 polyspline-data/
