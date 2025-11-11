@@ -126,6 +126,7 @@ namespace polyfem::solver
 			std::cout << f->name() << ": " << tmp.norm() << std::endl;
 
 			grad += tmp;
+			std::cout << f->name() << ": " << tmp.norm() << std::endl;
 		}
 	}
 
