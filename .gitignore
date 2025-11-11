@@ -113,7 +113,8 @@ stokes/**
 higher-order/**
 laplace/**
 ratios/**
-new-build/**trash-compactor/** 
+new-build/**
+wall-beam/**trash-compactor/** 
 mat-twist/** 
 one-thread-comparison/**
 large-stiffness-ratio/**
