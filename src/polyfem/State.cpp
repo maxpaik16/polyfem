@@ -991,6 +991,9 @@ namespace polyfem
 		logger().info("n bases: {}", n_bases);
 		logger().info("n pressure bases: {}", n_pressure_bases);
 
+		ass_vals_cache.clear();
+		mass_ass_vals_cache.clear();
+		pure_mass_ass_vals_cache.clear();
 		if (n_bases <= args["solver"]["advanced"]["cache_size"])
 		{
 			timer.start();
