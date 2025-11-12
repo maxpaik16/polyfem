@@ -1042,12 +1042,14 @@ namespace polyfem
 
 		ass_vals_cache.clear();
 		mass_ass_vals_cache.clear();
+		pure_mass_ass_vals_cache.clear();
 		if (n_bases <= args["solver"]["advanced"]["cache_size"])
 		{
 			timer.start();
 			logger().info("Building cache...");
 			ass_vals_cache.init(mesh->is_volume(), bases, curret_bases);
 			mass_ass_vals_cache.init(mesh->is_volume(), bases, curret_bases, true);
+			pure_mass_ass_vals_cache.init(mesh->is_volume(), bases, curret_bases, true);
 			if (mixed_assembler != nullptr)
 				pressure_ass_vals_cache.init(mesh->is_volume(), pressure_bases, curret_bases);
 
