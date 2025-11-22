@@ -991,9 +991,6 @@ namespace polyfem
 		logger().info("n bases: {}", n_bases);
 		logger().info("n pressure bases: {}", n_pressure_bases);
 
-		ass_vals_cache.clear();
-		mass_ass_vals_cache.clear();
-		pure_mass_ass_vals_cache.clear();
 		if (n_bases <= args["solver"]["advanced"]["cache_size"])
 		{
 			timer.start();
@@ -1010,6 +1007,7 @@ namespace polyfem
 		{
 			ass_vals_cache.init_empty();
 			mass_ass_vals_cache.init_empty(true);
+			pure_mass_ass_vals_cache.init_empty(true);
 			if (mixed_assembler != nullptr)
 				pressure_ass_vals_cache.init_empty();
 		}
@@ -1484,6 +1482,9 @@ namespace polyfem
 		if (!problem->is_time_dependent())
 		{
 			avg_mass = 1;
+			mass_matrix_assembler->use_density = false;
+			mass_matrix_assembler->assemble(mesh->is_volume(), n_bases, bases, geom_bases(), pure_mass_ass_vals_cache, 0, pure_mass, true);
+			pure_mass = lump_matrix(pure_mass);
 			timings.assembling_mass_mat_time = 0;
 			if (!is_problem_linear())
 				pure_mass_matrix_assembler->assemble(mesh->is_volume(), n_bases, bases, geom_bases(), pure_mass_ass_vals_cache, 0, pure_mass, true);
