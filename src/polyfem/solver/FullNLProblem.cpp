@@ -122,11 +122,9 @@ namespace polyfem::solver
 				continue;
 			TVector tmp;
 			f->first_derivative(x, tmp);
-
-			std::cout << f->name() << ": " << tmp.norm() << std::endl;
-
+			
 			grad += tmp;
-			std::cout << f->name() << ": " << tmp.norm() << std::endl;
+			std::cout << f->name() << " grad: " << grad_norm(tmp, "L2") << std::endl;
 		}
 	}
 
