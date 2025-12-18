@@ -155,6 +155,13 @@ namespace polyfem::solver
 			}
 		}
 		reduced_to_full_func = [this] (const Eigen::VectorXd &r) {return this->reduced_to_full(r);};
+		for (int i = 0; i < lumped_mass_.diagonal().size(); ++i)
+		{
+			if (lumped_mass_.diagonal()(i) == 0)
+			{
+				lumped_mass_.diagonal()(i) = 1;
+			}
+		}
 	}
 
 	double NLProblem::normalize_forms()
