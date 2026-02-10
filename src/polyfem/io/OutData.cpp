@@ -1947,6 +1947,84 @@ namespace polyfem::io
 		// 	writer.add_field("rhs", fun);
 		// }
 
+		if (state.mixed_assembler == nullptr && opts.export_field("row_norms"))
+		{
+			// export hessian row norms normalized by diagonal and un normalized
+			try
+			{
+				StiffnessMatrix hessian;
+				if (state.solve_data.nl_problem)
+				{
+					state.solve_data.nl_problem->use_full_size();
+					state.solve_data.nl_problem->hessian(sol, hessian);
+					state.solve_data.nl_problem->use_reduced_size();
+				}
+				else 
+				{
+					hessian = state.stiffness_mat;
+				}
+
+				Eigen::VectorXd row_norms(sol.size());
+				Eigen::MatrixXd row_norms_fun;
+
+				Eigen::VectorXd norm_row_norms(sol.size());
+				Eigen::MatrixXd norm_row_norms_fun;
+
+				Eigen::VectorXd diag(sol.size());
+				Eigen::MatrixXd diag_fun;
+
+				if (hessian.size() == 0)
+				{
+					row_norms.setZero();
+					norm_row_norms.setZero();
+					diag.setZero();
+				}
+				else
+				{
+					diag = hessian.diagonal();
+					for (int i = 0; i < sol.size(); ++i)
+					{
+						row_norms(i) = hessian.col(i).norm();
+						norm_row_norms(i) = (hessian.col(i) / hessian.coeffRef(i, i)).norm();
+					}
+				}
+
+				Evaluator::interpolate_function(
+					mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
+					state.polys, state.polys_3d, ref_element_sampler,
+					points.rows(), row_norms, row_norms_fun, opts.use_sampler, opts.boundary_only);
+
+				Evaluator::interpolate_function(
+					mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
+					state.polys, state.polys_3d, ref_element_sampler,
+					points.rows(), norm_row_norms, norm_row_norms_fun, opts.use_sampler, opts.boundary_only);
+
+				Evaluator::interpolate_function(
+					mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
+					state.polys, state.polys_3d, ref_element_sampler,
+					points.rows(), diag, diag_fun, opts.use_sampler, opts.boundary_only);
+
+
+				if (obstacle.n_vertices() > 0)
+				{
+					row_norms_fun.conservativeResize(row_norms_fun.rows() + obstacle.n_vertices(), row_norms_fun.cols());
+					row_norms_fun.bottomRows(obstacle.n_vertices()).setZero();
+
+					norm_row_norms_fun.conservativeResize(norm_row_norms_fun.rows() + obstacle.n_vertices(), norm_row_norms_fun.cols());
+					norm_row_norms_fun.bottomRows(obstacle.n_vertices()).setZero();
+
+					diag_fun.conservativeResize(diag_fun.rows() + obstacle.n_vertices(), diag_fun.cols());
+					diag_fun.bottomRows(obstacle.n_vertices()).setZero();
+				}
+				writer.add_field("row_norms", row_norms_fun);
+				writer.add_field("diag", diag_fun);
+				writer.add_field("normalized_row_norms", norm_row_norms_fun);
+			}
+			catch (std::exception &)
+			{
+			}
+		}
+
 		if (fun.cols() != 1 && state.mixed_assembler == nullptr && opts.export_field("traction_force"))
 		{
 			Eigen::MatrixXd traction_forces, traction_forces_fun;

@@ -172,6 +172,7 @@ namespace polyfem
 
 		StiffnessMatrix A;
 		build_stiffness_mat(A);
+		stiffness_mat = A;
 
 		Eigen::VectorXd b = rhs;
 

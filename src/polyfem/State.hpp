@@ -241,6 +241,8 @@ namespace polyfem
 		/// average system mass, used for contact with IPC
 		double avg_mass;
 
+		StiffnessMatrix stiffness_mat;
+
 		double characteristic_length;
 		double characteristic_force_density;
 
