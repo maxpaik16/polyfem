@@ -19,7 +19,6 @@
 #include <polyfem/io/MshWriter.hpp>
 #include <polyfem/io/OBJWriter.hpp>
 #include <polyfem/io/OutData.hpp>
-#include <polyfem/optimization/CacheLevel.hpp>
 #include <polyfem/utils/Logger.hpp>
 #include <polyfem/utils/MatrixUtils.hpp>
 #include <polyfem/utils/Timer.hpp>
@@ -50,9 +49,14 @@ namespace polyfem
 		return polysolve::nonlinear::Solver::create(for_al ? args["solver"]["augmented_lagrangian"]["nonlinear"] : args["solver"]["nonlinear"], args["solver"]["linear"], units.characteristic_length(), logger());
 	}
 
-	void State::solve_transient_tensor_nonlinear(const int time_steps, const double t0, const double dt, Eigen::MatrixXd &sol, UserPostStepCallback user_post_step)
+	void State::solve_transient_tensor_nonlinear(const int time_steps,
+												 const double t0,
+												 const double dt,
+												 Eigen::MatrixXd &sol,
+												 UserPostStepCallback user_post_step,
+												 const InitialConditionOverride *ic_override)
 	{
-		init_nonlinear_tensor_solve(sol, t0 + dt);
+		init_nonlinear_tensor_solve(sol, t0 + dt, true, ic_override);
 
 		// Write the total energy to a CSV file
 		int save_i = 0;
@@ -165,20 +169,15 @@ namespace polyfem
 		}
 	}
 
-	void State::init_nonlinear_tensor_solve(Eigen::MatrixXd &sol, const double t, const bool init_time_integrator)
+	void State::init_nonlinear_tensor_solve(Eigen::MatrixXd &sol,
+											const double t,
+											const bool init_time_integrator,
+											const InitialConditionOverride *ic_override)
 	{
 		assert(sol.cols() == 1);
 		assert(!is_problem_linear());  // non-linear
 		assert(!problem->is_scalar()); // tensor
 		assert(mixed_assembler == nullptr);
-
-		if (optimization_enabled != solver::CacheLevel::None)
-		{
-			if (initial_sol_update.size() == ndof())
-				sol = initial_sol_update;
-			else
-				initial_sol_update = sol;
-		}
 
 		// --------------------------------------------------------------------
 		// Check for initial intersections
@@ -208,20 +207,20 @@ namespace polyfem
 				solve_data.time_integrator = ImplicitTimeIntegrator::construct_time_integrator(args["time"]["integrator"]);
 
 				Eigen::MatrixXd solution, velocity, acceleration;
-				initial_solution(solution); // Reload this because we need all previous solutions
-				solution.col(0) = sol;      // Make sure the current solution is the same as `sol`
+				initial_solution(solution, ic_override); // Reload this because we need all previous solutions
+				solution.col(0) = sol;                   // Make sure the current solution is the same as `sol`
 				assert(solution.rows() == sol.size());
-				initial_velocity(velocity);
+				initial_velocity(velocity, ic_override);
 				assert(velocity.rows() == sol.size());
-				initial_acceleration(acceleration);
+				initial_acceleration(acceleration, ic_override);
 				assert(acceleration.rows() == sol.size());
 
-				if (optimization_enabled != solver::CacheLevel::None)
+				if (solution.cols() != velocity.cols() || solution.cols() != acceleration.cols())
 				{
-					if (initial_vel_update.size() == ndof())
-						velocity = initial_vel_update;
-					else
-						initial_vel_update = velocity;
+					log_and_throw_error(
+						"Incompatible initial-condition history for transient solve: "
+						"solution has {} columns, velocity has {}, acceleration has {}.",
+						solution.cols(), velocity.cols(), acceleration.cols());
 				}
 
 				const double dt = args["time"]["dt"];
@@ -277,7 +276,7 @@ namespace polyfem
 			args["solver"]["contact"]["CCD"]["broad_phase"],
 			args["solver"]["contact"]["CCD"]["tolerance"],
 			args["solver"]["contact"]["CCD"]["max_iterations"],
-			optimization_enabled == solver::CacheLevel::Derivatives,
+			optimization_enabled,
 			// Smooth Contact Form
 			args["contact"]["use_gcp_formulation"],
 			args["contact"]["alpha_t"],
@@ -389,7 +388,7 @@ namespace polyfem
 		// TODO: Make this more general
 		const double lagging_tol = args["solver"]["contact"].value("friction_convergence_tol", 1e-2) * units.characteristic_length();
 
-		if (optimization_enabled != solver::CacheLevel::Derivatives)
+		if (!optimization_enabled)
 		{
 			// Lagging loop (start at 1 because we already did an iteration above)
 			bool lagging_converged = !nl_problem.uses_lagging();
