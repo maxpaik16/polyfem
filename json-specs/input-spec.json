@@ -2512,7 +2512,8 @@
             "rest_mesh",
             "mises",
             "nodes",
-            "advanced"
+            "advanced",
+            "file_index_offset"
         ],
         "doc": "File names to write output data to."
     },
@@ -2578,6 +2579,12 @@
         "default": false,
         "type": "bool",
         "doc": "Reorder nodes accodring to input"
+    },
+    {
+        "pointer": "/output/data/file_index_offset",
+        "default": 0,
+        "type": "int",
+        "doc": "Starting file index offset for output files. Set automatically by restart JSON so that file numbering continues from the previous run."
     },
     {
         "pointer": "/output/reference",

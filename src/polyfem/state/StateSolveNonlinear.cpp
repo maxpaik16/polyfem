@@ -58,6 +58,10 @@ namespace polyfem
 	{
 		init_nonlinear_tensor_solve(sol, t0 + dt, true, ic_override);
 
+		// File index offset for continuing file numbering from a previous run.
+		// Set via restart JSON; defaults to 0 for fresh simulations.
+		const int t_offset = args["output"]["data"]["file_index_offset"].get<int>();
+
 		// Write the total energy to a CSV file
 		int save_i = 0;
 
@@ -76,7 +80,7 @@ namespace polyfem
 		// Save the initial solution
 		if (energy_csv)
 			energy_csv->write(save_i, sol);
-		save_timestep(t0, save_i, t0, dt, sol, Eigen::MatrixXd()); // no pressure
+		save_timestep(t0, t_offset, t0, dt, sol, Eigen::MatrixXd()); // no pressure
 		save_i++;
 
 		// Step 0.
@@ -124,7 +128,7 @@ namespace polyfem
 			// Always save the solution for consistency
 			if (energy_csv)
 				energy_csv->write(save_i, sol);
-			save_timestep(t0 + dt * t, t, t0, dt, sol, Eigen::MatrixXd()); // no pressure
+			save_timestep(t0 + dt * t, t + t_offset, t0, dt, sol, Eigen::MatrixXd()); // no pressure
 			save_i++;
 
 			if (user_post_step)
@@ -154,11 +158,11 @@ namespace polyfem
 				Eigen::MatrixXi F;
 				build_mesh_matrices(V, F);
 				io::MshWriter::write(
-					resolve_output_path(fmt::format(args["output"]["data"]["rest_mesh"], t)),
+					resolve_output_path(fmt::format(args["output"]["data"]["rest_mesh"], t + t_offset)),
 					V, F, mesh->get_body_ids(), mesh->is_volume(), /*binary=*/true);
 			}
 
-			const std::string &state_path = resolve_output_path(fmt::format(args["output"]["data"]["state"], t));
+			const std::string &state_path = resolve_output_path(fmt::format(args["output"]["data"]["state"], t + t_offset));
 			if (!state_path.empty())
 				solve_data.time_integrator->save_state(state_path);
 

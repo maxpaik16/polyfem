@@ -307,6 +307,8 @@ namespace polyfem
 		build_stiffness_mat(stiffness);
 
 		// --------------------------------------------------------------------
+		const int t_offset = args["output"]["data"]["file_index_offset"].get<int>();
+
 		// TODO rebuild stiffnes if material are time dept
 		for (int t = 1; t <= time_steps; ++t)
 		{
@@ -370,9 +372,9 @@ namespace polyfem
 
 			time_integrator->update_quantities(sol);
 
-			save_timestep(time, t, t0, dt, sol, pressure);
+			save_timestep(time, t + t_offset, t0, dt, sol, pressure);
 
-			const std::string &state_path = resolve_output_path(fmt::format(args["output"]["data"]["state"], t));
+			const std::string &state_path = resolve_output_path(fmt::format(args["output"]["data"]["state"], t + t_offset));
 			if (!state_path.empty())
 				time_integrator->save_state(state_path);
 
