@@ -87,6 +87,11 @@ namespace polyfem::solver
 		virtual double grad_norm(const TVector &grad, const polysolve::nonlinear::NormType norm_type) const override;
 		virtual double step_norm(const TVector &x, const polysolve::nonlinear::NormType norm_type) const override;
 
+		std::shared_ptr<FullNLProblem> get_penalty_problem()
+		{
+			return penalty_problem_;
+		}
+
 	protected:
 		const int full_size_; ///< Size of the full problem
 		int reduced_size_;    ///< Size of the reduced problem
@@ -114,6 +119,18 @@ namespace polyfem::solver
 		Eigen::DiagonalMatrix<double, Eigen::Dynamic> lumped_mass_;
 		unsigned int total_step = 0;
 		StiffnessMatrix last_hessian;
+		double element_conditioning_threshold = 0.01;
+		int temp_n = 0;
+
+		TVector get_Q1R1iTb()
+		{
+			return Q1R1iTb_;
+		}
+
+		StiffnessMatrix get_Q2()
+		{
+			return Q2_;
+		}
 
 	protected:
 		std::vector<std::shared_ptr<AugmentedLagrangianForm>> penalty_forms_;

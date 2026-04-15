@@ -176,6 +176,11 @@ int main(int argc, char **argv)
 
 			while (true)
 			{
+				//Eigen::SparseMatrix<double> A;
+				//Eigen::VectorXd b, x;
+				//solver->analyze_pattern(A, 0);
+				//solver->factorize(A);
+				//solver->solve(b, x);
 				Eigen::SparseMatrix<double> A;
 				Eigen::SparseMatrix<double, Eigen::RowMajor> A_row_maj;
 				Eigen::VectorXd b, x;
@@ -208,6 +213,7 @@ int main(int argc, char **argv)
 				MPI_Bcast(x.data(), rows, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 				MPI_Bcast(&start_solve, 1, MPI_INT, 0, MPI_COMM_WORLD);
 				solver->solve(b, x);
+				solver->set_parameters(in_args["solver"]["linear"]);
 			}
 		}
 #endif 

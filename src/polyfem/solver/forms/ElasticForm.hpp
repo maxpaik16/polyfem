@@ -99,6 +99,11 @@ namespace polyfem::solver
 		/// @brief Reset adaptive quadrature refinement after each complete nonlinear solve.
 		void finish() override;
 
+		void get_element_to_dofs_mapping(std::vector<std::set<int>>& e_to_dof)
+		{
+			assembler_.set_global_element_indices(e_to_dof);
+		}
+
 	private:
 		const int n_bases_;
 		std::vector<basis::ElementBases> &bases_;

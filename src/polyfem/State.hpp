@@ -242,6 +242,7 @@ namespace polyfem
 		double avg_mass;
 
 		StiffnessMatrix stiffness_mat;
+		Eigen::VectorXd amg_err;
 
 		double characteristic_length;
 		double characteristic_force_density;

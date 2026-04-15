@@ -7,6 +7,8 @@
 
 #include <ipc/utils/eigen_ext.hpp>
 
+#include <polyfem/utils/ElasticityUtils.hpp>
+
 namespace polyfem::assembler
 {
 	using namespace basis;
@@ -187,6 +189,12 @@ namespace polyfem::assembler
 			// (potentially parallel) loop over elements
 			// Note that n_bases is the number of elements since ach ElementBases object stores
 			// all local basis functions on a given element
+			element_conds.resize(n_bases);
+			std::vector<std::set<int>> el_to_dofs(n_bases);
+
+			global_element_indices_.clear();
+			global_element_indices_.resize(n_bases);
+
 			maybe_parallel_for(n_bases, [&](int start, int end, int thread_id) {
 				LocalThreadMatStorage &local_storage = get_local_thread_storage(storage, thread_id);
 
@@ -205,6 +213,8 @@ namespace polyfem::assembler
 					assert(MAX_QUAD_POINTS == -1 || quadrature.weights.size() < MAX_QUAD_POINTS);
 					local_storage.da = vals.det.array() * quadrature.weights.array();
 					const int n_loc_bases = int(vals.basis_values.size());
+
+					Eigen::MatrixXd local_hessian(n_loc_bases * size(), n_loc_bases * size());
 
 					for (int i = 0; i < n_loc_bases; ++i)
 					{
@@ -230,11 +240,15 @@ namespace polyfem::assembler
 								for (int m = 0; m < size(); ++m)
 								{
 									const double local_value = stiffness_val(n * size() + m);
+									local_hessian(i * size() + m, j * size() + n) = local_value;
+									local_hessian(j * size() + n, i * size() + m) = local_value;
 
 									// loop over the global nodes corresponding to local element (useful for non-conforming cases)
 									for (size_t ii = 0; ii < global_i.size(); ++ii)
 									{
 										const auto gi = global_i[ii].index * size() + m;
+										global_element_indices_[e].insert(gi);
+										el_to_dofs[e].insert(gi);
 										const auto wi = global_i[ii].val;
 
 										for (size_t jj = 0; jj < global_j.size(); ++jj)
@@ -264,10 +278,59 @@ namespace polyfem::assembler
 						}
 					}
 
+					Eigen::EigenSolver<Eigen::MatrixXd> es(local_hessian);
+					auto abs_evs = es.eigenvalues().cwiseAbs();
+					double max_ev = 0;
+					double min_ev = 1e100;
+					for (int i = 0; i < abs_evs.size(); ++i)
+					{
+						if (abs_evs(i) > 1e-8)
+						{
+							max_ev = std::max(max_ev, abs_evs(i));
+							min_ev = std::min(min_ev, abs_evs(i));
+						}
+					}
+					element_conds[e] = max_ev / min_ev;
+					//std::cout << name() << "LA: " << element_conds[e] << std::endl;
+
 					// timer.stop();
 					// if (!vals.has_parameterization) { logger().trace("-- Timer: {}", timer.getElapsedTime()); }
 				}
 			});
+
+			Eigen::VectorXd sorted_el_conds(n_bases);
+			for (int i = 0; i < n_bases; ++i)
+			{
+				sorted_el_conds(i) = element_conds[i];
+			}
+			std::sort(sorted_el_conds.data(), sorted_el_conds.data() + sorted_el_conds.size());
+
+			std::ofstream file;
+            file.open("element_conds.txt", std::ios_base::app);
+            file << sorted_el_conds.transpose() << std::endl;
+            file.close();
+
+			const int cutoff_index = sorted_el_conds.size() * (1 - element_conditioning_threshold);
+			const double cutoff = sorted_el_conds(cutoff_index);
+			//logger->trace("Problematic element conditioning threshold: {}", cutoff);
+			std::cout << this->name() << std::endl;
+			std::cout << "Element thresh: " << cutoff << std::endl;
+
+			bad_indices_.clear();
+			bad_indices_.resize(1);
+			if (cutoff > 0 && element_conditioning_threshold > 0)
+			{
+				for (int i = 0; i < element_conds.size(); ++i)
+				{
+					if (element_conds[i] >= cutoff)
+					{
+						for (auto index : el_to_dofs[i])
+						{
+							bad_indices_[0].insert(index);
+						}
+					}
+				}
+			}
 
 			timer.stop();
 			logger().trace("done separate assembly {}s...", timer.getElapsedTime());

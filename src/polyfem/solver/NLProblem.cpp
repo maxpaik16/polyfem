@@ -6,6 +6,8 @@
 
 #include <fstream>
 #include <polyfem/solver/forms/ContactForm.hpp>
+#include <polyfem/solver/forms/BarrierContactForm.hpp>
+#include <polyfem/solver/forms/ElasticForm.hpp>
 
 #include <polyfem/utils/Logger.hpp>
 
@@ -23,6 +25,7 @@
 #include <igl/Timer.h>
 
 #include <set>
+#include <unsupported/Eigen/SparseExtra>
 
 /*
 m \frac{\partial^2 u}{\partial t^2} = \psi = \text{div}(\sigma[u])\newline
@@ -629,7 +632,6 @@ namespace polyfem::solver
 	void NLProblem::hessian(const TVector &x, THessian &hessian)
 	{
 		FullNLProblem::hessian(reduced_to_full(x), hessian);
-		last_hessian = hessian;
 
 		if (full_size() != current_size())
 		{
@@ -642,6 +644,12 @@ namespace polyfem::solver
 			hessian += tmp;
 		}
 		hessian *= weight;
+		last_hessian = hessian;
+		if (temp_n == 2) {
+			Eigen::saveMarket(last_hessian, "hessian.mtx");
+			exit(0);
+		}
+		temp_n++;
 	}
 
 	void NLProblem::get_problematic_indices(std::vector<std::set<int>> &bad_indices)
@@ -692,6 +700,154 @@ namespace polyfem::solver
 				return;
 			}
 		}
+		return;
+		if (last_hessian.rows() != current_size())
+		{
+			return;
+		}
+		const int dim = 3;
+		std::vector<std::set<int>> suspect_subdomains;
+		for (auto &f : forms_)
+		{
+			ElasticForm* ef = dynamic_cast<ElasticForm*>(f.get());
+			if (ef)
+			{
+				std::vector<std::set<int>> elast_suspects;
+				ef->get_element_to_dofs_mapping(elast_suspects);
+				suspect_subdomains.insert(suspect_subdomains.end(), elast_suspects.begin(), elast_suspects.end());
+				continue;
+			}
+
+			BarrierContactForm* bf = dynamic_cast<BarrierContactForm*>(f.get());
+			if (bf)
+			{
+				ipc::NormalCollisions collisions = bf->collision_set();
+
+				for (int i = 0; i < collisions.size(); ++i)
+				{
+					auto& collision = collisions[i];
+					const int n_v = collision.num_vertices();
+					const std::array<int, 4> vis = collision.vertex_ids(state_->collision_mesh.edges(), state_->collision_mesh.faces());
+					std::set<int> subdomain;
+					for (int j = 0; j < n_v; j++)
+					{
+						for (int d = 0; d < dim; ++d)
+						{
+							int global_dof = dim * state_->collision_mesh.to_full_vertex_id(vis[j]) + d;
+							subdomain.insert(global_dof);
+						}
+					}
+					suspect_subdomains.push_back(subdomain);
+				}
+
+				continue;
+			}
+		}
+
+		std::vector<std::set<int>> full_bad_indices(1);
+		std::vector<double> element_conds(suspect_subdomains.size());
+
+		for (int e = 0; e < suspect_subdomains.size(); ++e)
+		{
+			Eigen::MatrixXd local_hessian(suspect_subdomains[e].size(), suspect_subdomains[e].size());
+
+			int i_counter = 0;
+			for (auto i : suspect_subdomains[e])
+			{
+				int j_counter = 0;
+				for (auto j : suspect_subdomains[e])
+				{
+					local_hessian(i_counter, j_counter) = last_hessian.coeffRef(i, j);
+					++j_counter;
+				}
+				++i_counter;
+			}
+
+			Eigen::EigenSolver<Eigen::MatrixXd> es(local_hessian);
+			auto abs_evs = es.eigenvalues().cwiseAbs();
+			double max_ev = 0;
+			double min_ev = 1e100;
+			for (int i = 0; i < abs_evs.size(); ++i)
+			{
+				if (abs_evs(i) > 1e-8)
+				{
+					max_ev = std::max(max_ev, abs_evs(i));
+					min_ev = std::min(min_ev, abs_evs(i));
+				}
+			}
+			element_conds[e] = max_ev / min_ev;
+		}
+
+		Eigen::VectorXd sorted_el_conds(element_conds.size());
+		for (int i = 0; i < element_conds.size(); ++i)
+		{
+			sorted_el_conds(i) = element_conds[i];
+		}
+		std::sort(sorted_el_conds.data(), sorted_el_conds.data() + sorted_el_conds.size());
+
+		std::ofstream file;
+		file.open("element_conds.txt", std::ios_base::app);
+		file << sorted_el_conds.transpose() << std::endl;
+		file.close();
+
+		const int cutoff_index = sorted_el_conds.size() * (1 - element_conditioning_threshold);
+		const double cutoff = sorted_el_conds(cutoff_index);
+		logger().trace("Problematic element conditioning threshold from NL Problem: {}", cutoff);
+
+		bad_indices.resize(1);
+		if (cutoff > 0 && element_conditioning_threshold > 0)
+		{
+			for (int i = 0; i < element_conds.size(); ++i)
+			{
+				if (element_conds[i] >= cutoff)
+				{
+					for (auto index : suspect_subdomains[i])
+					{
+						full_bad_indices[0].insert(index);
+					}
+				}
+			}
+		}
+
+		bad_indices.clear();
+		bad_indices.resize(1);
+		dof_to_func_mapping.clear();
+		
+		if (current_size() == full_size())
+		{
+			for (int i = 0; i < current_size(); ++i)
+			{
+				if (full_bad_indices[0].count(i) > 0)
+				{
+					bad_indices[0].insert(i);
+				}
+				dof_to_func_mapping.push_back(i % dim);
+			}
+		}
+		else
+		{
+			Eigen::VectorXd mask(full_size());
+			for (int i = 0; i < full_size(); ++i)
+			{
+				mask(i) = full_bad_indices[0].count(i);
+			}
+
+			if (penalty_forms_.size() == 1 && penalty_forms_.front()->can_project())
+				penalty_forms_.front()->project_gradient(mask);
+			else
+				mask = Q2t_ * mask;
+
+			for (int i = 0; i < current_size(); ++i)
+			{
+				if (mask(i) > 0)
+				{
+					bad_indices[0].insert(i);
+				}
+				dof_to_func_mapping.push_back(i % dim);
+			}
+		}
+
+		return;
 	}
 
 	void NLProblem::solution_changed(const TVector &newX)

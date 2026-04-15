@@ -273,6 +273,7 @@ namespace polyfem
 
 		const std::string formulation = this->formulation();
 		assembler = assembler::AssemblerUtils::make_assembler(formulation);
+		assembler->element_conditioning_threshold = args["solver"]["element_conditioning_threshold"];
 		assert(assembler->name() == formulation);
 		mass_matrix_assembler = std::make_shared<assembler::Mass>();
 		pure_mass_matrix_assembler = std::make_shared<assembler::HRZMass>();

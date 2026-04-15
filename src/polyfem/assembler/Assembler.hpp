@@ -133,10 +133,14 @@ namespace polyfem::assembler
 		}
 
 		mutable std::vector<Eigen::MatrixXd> local_hessians_;
+		mutable std::vector<double> element_conds;
 		void get_local_hessians(std::vector<Eigen::MatrixXd> &local_hessians)
 		{
 			local_hessians = local_hessians_;
 		}
+
+		mutable std::vector<std::set<int>> bad_indices_;
+		double element_conditioning_threshold = 0.01;
 
 		// plotting (eg von mises), assembler is the name of the formulation
 		virtual void compute_scalar_value(

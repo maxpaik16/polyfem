@@ -26,6 +26,8 @@
 #include <string>
 #include <vector>
 
+#include <polysolve/linear/ExperimentalSolver.hpp>
+
 namespace polyfem
 {
 	using namespace mesh;
@@ -89,6 +91,7 @@ namespace polyfem
 		solver->logger = &(logger());
 		solver->set_positions(positions);
 		solver->set_elements(test_elements);
+		solver->set_problematic_dofs(assembler->bad_indices_);
 		
 		assert(assembler->is_linear() && !is_contact_enabled());
 		assert(solve_data.rhs_assembler != nullptr);
@@ -179,6 +182,11 @@ namespace polyfem
 		// --------------------------------------------------------------------
 
 		solve_linear(step, static_linear_solver_cache, A, b, args["output"]["advanced"]["spectrum"], sol, pressure, user_post_step);
+		auto sp = dynamic_cast<polysolve::linear::ExperimentalSolver*>(static_linear_solver_cache.get());
+		//if (sp)
+		//{
+		//	amg_err = sp->amg_err;
+		//}
 	}
 
 	void State::init_linear_solve(Eigen::MatrixXd &sol, const double t, const InitialConditionOverride *ic_override)
