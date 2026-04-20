@@ -26,7 +26,7 @@ namespace polyfem::solver
 					const ipc::BroadPhaseMethod broad_phase_method,
 					const double ccd_tolerance,
 					const int ccd_max_iterations,
-					double solver_cutoff = 1.0): ContactForm(collision_mesh, dhat, avg_mass, use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase_method, ccd_tolerance, ccd_max_iterations, solver_cutoff), barrier_potential_(dhat, 1,0, use_physical_barrier)
+					double solver_cutoff): ContactForm(collision_mesh, dhat, avg_mass, use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase_method, ccd_tolerance, ccd_max_iterations, solver_cutoff), barrier_potential_(dhat, 1.0, use_physical_barrier)
     {
 		// collision_set_.set_use_convergent_formulation(use_convergent_formulation);
 		collision_set_.set_use_area_weighting(use_area_weighting);
@@ -212,7 +212,7 @@ namespace polyfem::solver
 			psd_projection_method = ipc::PSDProjectionMethod::NONE;
 		}
 
-		barrier_potential_.dofs_to_project = dofs_to_project;
+		//barrier_potential_.dofs_to_project = dofs_to_project;
 		hessian = barrier_potential_.hessian(collision_set_, collision_mesh_, compute_displaced_surface(x), psd_projection_method);
 		hessian = collision_mesh_.to_full_dof(hessian);
 	}

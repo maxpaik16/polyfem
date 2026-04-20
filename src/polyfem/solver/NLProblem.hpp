@@ -84,8 +84,8 @@ namespace polyfem::solver
 		virtual double grad_norm_rescaling(const polysolve::nonlinear::NormType norm_type) const override;
 		virtual double step_norm_rescaling(const polysolve::nonlinear::NormType norm_type) const override;
 		virtual double energy_norm_rescaling(const polysolve::nonlinear::NormType norm_type) const override;
-		virtual double grad_norm(const TVector &grad, const polysolve::nonlinear::NormType norm_type) const override;
-		virtual double step_norm(const TVector &x, const polysolve::nonlinear::NormType norm_type) const override;
+		virtual double grad_norm(const TVector &grad, const polysolve::nonlinear::NormType &norm_type) const override;
+		virtual double step_norm(const TVector &x, const polysolve::nonlinear::NormType &norm_type) const override;
 
 		std::shared_ptr<FullNLProblem> get_penalty_problem()
 		{

@@ -124,7 +124,7 @@ namespace polyfem::solver
 			f->first_derivative(x, tmp);
 			
 			grad += tmp;
-			std::cout << f->name() << " grad: " << grad_norm(tmp, "L2") << std::endl;
+			std::cout << f->name() << " grad: " << grad_norm(tmp, polysolve::nonlinear::NormType::L2) << std::endl;
 		}
 	}
 

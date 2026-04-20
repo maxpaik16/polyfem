@@ -224,7 +224,7 @@ namespace polyfem::solver
 		return F0 * density_scale * L;
 	}
 
-	double NLProblem::grad_norm(const TVector &grad, const polysolve::nonlinear::NormType norm_type) const
+	double NLProblem::grad_norm(const TVector &grad, const polysolve::nonlinear::NormType &norm_type) const
 	{
 		switch (norm_type)
 		{
@@ -238,7 +238,7 @@ namespace polyfem::solver
 		log_and_throw_error("Unrecognized norm type!");
 	}
 
-	double NLProblem::step_norm(const TVector &x, const polysolve::nonlinear::NormType norm_type) const
+	double NLProblem::step_norm(const TVector &x, const polysolve::nonlinear::NormType &norm_type) const
 	{
 		switch (norm_type)
 		{

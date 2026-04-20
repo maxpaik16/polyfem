@@ -60,7 +60,7 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
 endif()
 
 ################################################################################
-project(PolyFEM DESCRIPTION "A polyvalent C++ FEM library" LANGUAGES C CXX)
+project(PolyFEM DESCRIPTION "A polyvalent C++ FEM library" LANGUAGES C CXX CUDA)
 
 # Polyfem options
 set(POLYFEM_SMALL_N  80 CACHE STRING "Maximum length for stack-allocated vectors (gradient + Hessian).")
