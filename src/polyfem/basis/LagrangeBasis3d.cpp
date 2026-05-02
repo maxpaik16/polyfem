@@ -899,7 +899,7 @@ namespace
 				{
 					const int f = mesh.get_index_from_element_face(c, fv(i, 0), fv(i, 1), fv(i, 2)).face;
 
-					if (mesh.is_boundary_face(f))
+					if (mesh.is_boundary_face(f) || mesh.get_boundary_id(f) > 0)
 					{
 						lb.add_boundary_primitive(f, i);
 					}
@@ -923,7 +923,7 @@ namespace
 				{
 					const int f = mesh.get_index_from_element_face(c, fvt(i, 0), fvt(i, 1), fvt(i, 2)).face;
 
-					if (mesh.is_boundary_face(f))
+					if (mesh.is_boundary_face(f) || mesh.get_boundary_id(f) > 0)
 					{
 						lb.add_boundary_primitive(f, i);
 					}
@@ -938,7 +938,7 @@ namespace
 				{
 					const int f = find_quad_face(mesh, c, fvq(i, 0), fvq(i, 1), fvq(i, 2), fvq(i, 3)).face;
 
-					if (mesh.is_boundary_face(f))
+					if (mesh.is_boundary_face(f) || mesh.get_boundary_id(f) > 0)
 					{
 						lb.add_boundary_primitive(f, i + 2);
 					}
@@ -965,7 +965,7 @@ namespace
 				{
 					const int f = mesh.get_index_from_element_face(c, fvt(i, 0), fvt(i, 1), fvt(i, 2)).face;
 
-					if (mesh.is_boundary_face(f))
+					if (mesh.is_boundary_face(f) || mesh.get_boundary_id(f) > 0)
 					{
 						lb.add_boundary_primitive(f, i + 1);
 					}
@@ -978,7 +978,7 @@ namespace
 				{
 					const int f = find_quad_face(mesh, c, fvq(i, 0), fvq(i, 1), fvq(i, 2), fvq(i, 3)).face;
 
-					if (mesh.is_boundary_face(f))
+					if (mesh.is_boundary_face(f) || mesh.get_boundary_id(f) > 0)
 					{
 						lb.add_boundary_primitive(f, 0);
 					}
