@@ -170,50 +170,16 @@ int main(int argc, char **argv)
 
 			// create solver
 			auto solver = polysolve::linear::Solver::create(in_args["solver"]["linear"]["solver"][0], "");
-			solver->logger = logger.get();
 
 			solver->set_parameters(in_args["solver"]["linear"]);
 
 			while (true)
 			{
-				//Eigen::SparseMatrix<double> A;
-				//Eigen::VectorXd b, x;
-				//solver->analyze_pattern(A, 0);
-				//solver->factorize(A);
-				//solver->solve(b, x);
 				Eigen::SparseMatrix<double> A;
-				Eigen::SparseMatrix<double, Eigen::RowMajor> A_row_maj;
 				Eigen::VectorXd b, x;
-				int rows, cols, nnzs;
-
-				MPI_Bcast(&rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
-				MPI_Bcast(&cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
-				MPI_Bcast(&nnzs, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-				logger->trace("Rows: {}, Cols: {}, NNZs: {}", rows, cols, nnzs);
-
-				A_row_maj.resize(rows, cols);
-				A_row_maj.reserve(nnzs);
-
-				MPI_Bcast(A_row_maj.valuePtr(), nnzs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-				MPI_Bcast(A_row_maj.innerIndexPtr(), nnzs, MPI_INT, 0, MPI_COMM_WORLD);
-				MPI_Bcast(A_row_maj.outerIndexPtr(), rows + 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-				A = A_row_maj;
-
-				logger->trace("A Rows: {}, A Cols: {}, A NNZs: {}", A.rows(), A.cols(), A.nonZeros());
-
-				int start_factorize, start_solve;
-
-				MPI_Bcast(&start_factorize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+				solver->analyze_pattern(A, 0);
 				solver->factorize(A);
-				b.resize(rows);
-				MPI_Bcast(b.data(), rows, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-				x.resize(rows); 
-				MPI_Bcast(x.data(), rows, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-				MPI_Bcast(&start_solve, 1, MPI_INT, 0, MPI_COMM_WORLD);
 				solver->solve(b, x);
-				solver->set_parameters(in_args["solver"]["linear"]);
 			}
 		}
 #endif 
@@ -320,7 +286,7 @@ int forward_simulation(const CLI::App &command_line,
 
 	Eigen::MatrixXd sol;
 	Eigen::MatrixXd pressure;
-
+	
 	state.solve_problem(sol, pressure);
 
 	state.compute_errors(sol);

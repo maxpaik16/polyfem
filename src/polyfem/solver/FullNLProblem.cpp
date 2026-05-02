@@ -115,6 +115,12 @@ namespace polyfem::solver
 
 	void FullNLProblem::gradient(const TVector &x, TVector &grad)
 	{
+
+		contact_force_per_dof.resize(x.size());
+		contact_force_per_dof.setZero();
+		stress_per_dof.resize(x.size());
+		stress_per_dof.setZero();
+
 		grad = TVector::Zero(x.size());
 		for (auto &f : forms_)
 		{
@@ -122,9 +128,19 @@ namespace polyfem::solver
 				continue;
 			TVector tmp;
 			f->first_derivative(x, tmp);
+
+			std::string name = f->name();
+			if (name == "barrier-contact" || name == "smooth-contact" || name == "normal-adhesion")
+			{
+				contact_force_per_dof += tmp.cwiseAbs();
+			}
+			else if (name == "elastic")
+			{
+				stress_per_dof += tmp.cwiseAbs();
+			}
 			
 			grad += tmp;
-			std::cout << f->name() << " grad: " << grad_norm(tmp, polysolve::nonlinear::NormType::L2) << std::endl;
+			// std::cout << name << " grad: " << grad_norm(tmp, polysolve::nonlinear::NormType::L2) << std::endl;
 		}
 	}
 
@@ -141,109 +157,9 @@ namespace polyfem::solver
 
 			THessian tmp;
 
-			switch (projection_setting) {
-				case 0:
-					f->set_project_to_psd(project_to_psd_);
-					f->second_derivative(x, tmp);
-					hessian += tmp;
-					break;
-				case 1:
-					if (f->name() == "barrier-contact")
-					{
-						f->set_project_to_psd(true);
-						f->second_derivative(x, tmp);
-						contact_hessian += tmp;
-					}
-					else
-					{
-						f->set_project_to_psd(false);
-						f->second_derivative(x, tmp);
-
-						global_element_indices.insert(global_element_indices.end(), f->global_element_indices.begin(), f->global_element_indices.end());
-						
-						hessian += tmp;
-					}
-					break;
-				case 2:
-					f->set_project_to_psd(false);
-					f->second_derivative(x, tmp);
-
-					global_element_indices.insert(global_element_indices.end(), f->global_element_indices.begin(), f->global_element_indices.end());
-					
-					hessian += tmp;
-					break;
-				case 3:
-					f->dofs_to_project = dofs_to_project;
-					f->set_project_to_psd(false);
-					f->second_derivative(x, tmp);
-					hessian += tmp;
-					break;
-				default:
-					assert(false);
-			}	
-		}
-
-		if (project_to_psd_ && projection_setting > 0 && projection_setting != 3 && global_element_indices.size() > 0)
-		{
-			std::set<int> elements_to_project;
-			Eigen::MatrixXd dense_hessian = hessian;
-			for (int e = 0; e < global_element_indices.size(); ++e)
-			{
-				std::set<int> indices = global_element_indices[e];
-				Eigen::MatrixXd local_hessian(indices.size(), indices.size());
-				int i = 0;
-				for (auto gi : indices)
-				{
-					int j = 0;
-					for (auto gj : indices)
-					{
-						local_hessian(i, j) = dense_hessian(gi, gj);
-						++j;
-					}
-					++i;
-				}
-				auto projected_local_hessian = ipc::project_to_psd(local_hessian);
-				if (!projected_local_hessian.isApprox(local_hessian))
-				{
-					elements_to_project.insert(e);
-				}
-			}
-
-			for (int e : elements_to_project)
-			{
-				std::set<int> indices = global_element_indices[e];
-				Eigen::MatrixXd local_hessian(indices.size(), indices.size());
-				int i = 0;
-				for (auto gi : indices)
-				{
-					int j = 0;
-					for (auto gj : indices)
-					{
-						local_hessian(i, j) = dense_hessian(gi, gj);
-						++j;
-					}
-					++i;
-				}
-				auto projected_local_hessian = ipc::project_to_psd(local_hessian);
-				i = 0;
-				for (auto gi : indices)
-				{
-					int j = 0;
-					for (auto gj : indices)
-					{
-						dense_hessian(gi, gj) = projected_local_hessian(i, j);
-						++j;
-					}
-					++i;
-				}
-			}
-			hessian = dense_hessian.sparseView();
-			global_element_indices.clear();
-		}
-
-		if (projection_setting == 1)
-		{
-			hessian += contact_hessian;
+			f->set_project_to_psd(project_to_psd_);
+			f->second_derivative(x, tmp);
+			hessian += tmp;			
 		}
 	}
 

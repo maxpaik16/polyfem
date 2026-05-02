@@ -1466,15 +1466,43 @@
             "rayleigh_damping",
             "advanced",
             "projection_setting",
-            "element_conditioning_threshold"
+            "element_conditioning_threshold",
+            "precondition_order_threshold",
+            "precondition_quality_threshold",
+            "precondition_contact",
+            "precondition_von_mises_threshold"
         ],
         "doc": "The settings for the solver including linear solver, nonlinear solver, and some advanced options."
     },
     {
         "pointer": "/solver/element_conditioning_threshold",
-        "default": 0.01,
+        "default": 0.0,
         "type": "float",
         "doc": "Threshold for which to include badly conditioned elements in the problematic subdomain."
+    },
+    {
+        "pointer": "/solver/precondition_order_threshold",
+        "default": 0,
+        "type": "int",
+        "doc": "Threshold for which to include higher-order elements in the problematic subdomain."
+    },
+    {
+        "pointer": "/solver/precondition_quality_threshold",
+        "default": 0.0,
+        "type": "float",
+        "doc": "Threshold for which to include badly shaped elements in the problematic subdomain."
+    },
+    {
+        "pointer": "/solver/precondition_von_mises_threshold",
+        "default": 0.0,
+        "type": "float",
+        "doc": "Threshold for which to include highly stressed elements in the problematic subdomain."
+    },
+    {
+        "pointer": "/solver/precondition_contact",
+        "default": false,
+        "type": "bool",
+        "doc": "Whether or not to make problematic subdomain all elements in contact."
     },
     {
         "pointer": "/solver/max_threads",

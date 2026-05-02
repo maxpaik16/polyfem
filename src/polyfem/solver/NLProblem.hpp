@@ -46,8 +46,7 @@ namespace polyfem::solver
 		virtual void gradient(const TVector &x, TVector &gradv) override;
 		virtual void hessian(const TVector &x, THessian &hessian) override;
 
-		void get_problematic_indices(std::vector<std::set<int>> &bad_indices) override;
-		void get_dof_to_func_mapping(std::vector<int> &dof_to_func_mapping_out) override {dof_to_func_mapping_out = dof_to_func_mapping;}
+		virtual void get_problematic_dofs(std::set<int> &bad_dofs) override;
 
 		virtual bool is_step_valid(const TVector &x0, const TVector &x1) override;
 		virtual bool is_step_collision_free(const TVector &x0, const TVector &x1) override;
@@ -84,8 +83,8 @@ namespace polyfem::solver
 		virtual double grad_norm_rescaling(const polysolve::nonlinear::NormType norm_type) const override;
 		virtual double step_norm_rescaling(const polysolve::nonlinear::NormType norm_type) const override;
 		virtual double energy_norm_rescaling(const polysolve::nonlinear::NormType norm_type) const override;
-		virtual double grad_norm(const TVector &grad, const polysolve::nonlinear::NormType &norm_type) const override;
-		virtual double step_norm(const TVector &x, const polysolve::nonlinear::NormType &norm_type) const override;
+		virtual double grad_norm(const TVector &grad, const polysolve::nonlinear::NormType norm_type) const override;
+		virtual double step_norm(const TVector &x, const polysolve::nonlinear::NormType norm_type) const override;
 
 		std::shared_ptr<FullNLProblem> get_penalty_problem()
 		{

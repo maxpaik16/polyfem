@@ -1654,6 +1654,22 @@ namespace polyfem::io
 				}
 				writer.add_field("amg_err", amg_err_fun);
 			}
+
+			if (assembler.element_quality_per_dof.size() > 0)
+			{
+				Eigen::MatrixXd eq_err_fun(assembler.element_quality_per_dof.size(), 0);
+				Evaluator::interpolate_function(
+						mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
+						state.polys, state.polys_3d, ref_element_sampler,
+						points.rows(), assembler.element_quality_per_dof, eq_err_fun, opts.use_sampler, opts.boundary_only);
+
+				if (obstacle.n_vertices() > 0)
+				{
+					eq_err_fun.conservativeResize(eq_err_fun.rows() + obstacle.n_vertices(), eq_err_fun.cols());
+					eq_err_fun.bottomRows(obstacle.n_vertices()).setZero();
+				}
+				writer.add_field("element_quality", eq_err_fun);
+			}
 		}
 
 		if (problem.is_time_dependent())
@@ -2016,8 +2032,8 @@ namespace polyfem::io
 					for (int i = 0; i < sol.size(); ++i)
 					{
 						// assuming symmetry
-						row_norms(i) = hessian.col(i).norm();
-						norm_row_norms(i) = (hessian.col(i) / hessian.coeffRef(i, i)).norm();
+						row_norms(i) = hessian.col(i).cwiseAbs().sum();
+						norm_row_norms(i) = (hessian.col(i) / hessian.coeffRef(i, i)).cwiseAbs().sum();
 						row_sum(i) = hessian.col(i).cwiseAbs().sum();
 					}
 				}

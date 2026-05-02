@@ -73,16 +73,8 @@ namespace polyfem::solver
 															  nl_solver_params, linear_solver, characteristic_length * scale, logger())
 														: nl_solverin;
 
-				nl_solver->set_positions(test_vertices.transpose());
-				nl_solver->set_elements(test_elements.transpose());
-
-				std::vector<std::set<int>> bad_indices;
-				nl_problem.get_problematic_indices(bad_indices);
-				std::vector<int> dof_to_func_mapping;
-				nl_problem.get_dof_to_func_mapping(dof_to_func_mapping);
-
-				nl_solver->set_problematic_indices(bad_indices);
-				nl_solver->set_dof_to_func_mapping(dof_to_func_mapping);
+				nl_problem.set_positions(test_vertices.transpose());
+				nl_problem.set_elements(test_elements.transpose());
 
 				nl_solver->minimize(nl_problem, tmp_sol);
 				nl_problem.finish();
@@ -160,15 +152,8 @@ namespace polyfem::solver
 														  nl_solver_params, linear_solver, characteristic_length * scale, logger())
 													: nl_solverin;
 
-			std::vector<std::set<int>> bad_indices;
-			nl_problem.get_problematic_indices(bad_indices);
-			std::vector<int> dof_to_func_mapping;
-			nl_problem.get_dof_to_func_mapping(dof_to_func_mapping);
-			nl_solver->set_problematic_indices(bad_indices);
-			nl_solver->set_dof_to_func_mapping(dof_to_func_mapping);
-
-			nl_solver->set_positions(test_vertices.transpose());
-			nl_solver->set_elements(test_elements.transpose());
+			nl_problem.set_positions(test_vertices.transpose());
+			nl_problem.set_elements(test_elements.transpose());
 										
 			nl_solver->minimize(nl_problem, tmp_sol);
 			nl_problem.finish();

@@ -191,6 +191,8 @@ namespace polyfem::assembler
 			// all local basis functions on a given element
 			element_conds.resize(n_bases);
 			std::vector<std::set<int>> el_to_dofs(n_bases);
+			std::vector<int> el_orders(n_bases, 0);
+			std::vector<double> el_qualities(n_bases, 1);
 
 			global_element_indices_.clear();
 			global_element_indices_.resize(n_bases);
@@ -207,6 +209,37 @@ namespace polyfem::assembler
 					// compute geometric mapping
 					// evaluate and store basis functions/their gradients at quadrature points
 					cache.compute(e, is_volume, bases[e], gbases[e], vals);
+
+					for (auto &b : bases[e].bases)
+					{
+						el_orders[e] = std::max(el_orders[e], b.order());
+					}
+
+					for (Eigen::MatrixXd JinvT : vals.jac_it)
+					{
+						Eigen::MatrixXd J = JinvT.inverse().transpose();
+						Eigen::MatrixXd T;
+						double dim;
+						if (vals.is_volume_)
+						{
+							Eigen::MatrixXd Winv(3, 3);
+							Winv << 1.0, -1.0 / sqrt(3.0), -1.0 / sqrt(6.0), 
+									0.0, 2.0 / sqrt(3.0), -1.0 / sqrt(6.0),
+									0.0, 0.0, sqrt(3.0 / 2.0);
+							T = J * Winv;
+							dim = 3;
+						}
+						else
+						{
+							Eigen::MatrixXd Winv(2, 2);
+							Winv << 1.0, -1.0 / sqrt(3.0),
+									0.0, 2.0 / sqrt(3.0);
+							T = J * Winv;
+							dim = 2;
+						}
+						double shape_score = dim * std::pow(T.determinant(), dim / 2.0) / T.squaredNorm();
+						el_qualities[e] = std::min(el_qualities[e], shape_score);
+					}
 
 					const Quadrature &quadrature = vals.quadrature;
 
@@ -298,37 +331,16 @@ namespace polyfem::assembler
 				}
 			});
 
-			Eigen::VectorXd sorted_el_conds(n_bases);
-			for (int i = 0; i < n_bases; ++i)
+			basis_order_per_dof.resize(stiffness.rows());
+			basis_order_per_dof.setZero();
+			element_quality_per_dof.resize(stiffness.rows());
+			element_quality_per_dof.setConstant(1.0);
+			for (int i = 0; i < el_orders.size(); ++i)
 			{
-				sorted_el_conds(i) = element_conds[i];
-			}
-			std::sort(sorted_el_conds.data(), sorted_el_conds.data() + sorted_el_conds.size());
-
-			std::ofstream file;
-            file.open("element_conds.txt", std::ios_base::app);
-            file << sorted_el_conds.transpose() << std::endl;
-            file.close();
-
-			const int cutoff_index = sorted_el_conds.size() * (1 - element_conditioning_threshold);
-			const double cutoff = sorted_el_conds(cutoff_index);
-			//logger->trace("Problematic element conditioning threshold: {}", cutoff);
-			std::cout << this->name() << std::endl;
-			std::cout << "Element thresh: " << cutoff << std::endl;
-
-			bad_indices_.clear();
-			bad_indices_.resize(1);
-			if (cutoff > 0 && element_conditioning_threshold > 0)
-			{
-				for (int i = 0; i < element_conds.size(); ++i)
+				for (auto index : el_to_dofs[i])
 				{
-					if (element_conds[i] >= cutoff)
-					{
-						for (auto index : el_to_dofs[i])
-						{
-							bad_indices_[0].insert(index);
-						}
-					}
+					basis_order_per_dof(index) = std::max(el_orders[i], basis_order_per_dof(index));
+					element_quality_per_dof(index) = std::min(el_qualities[i], element_quality_per_dof(index));
 				}
 			}
 

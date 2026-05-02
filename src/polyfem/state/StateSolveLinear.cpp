@@ -26,8 +26,6 @@
 #include <string>
 #include <vector>
 
-#include <polysolve/linear/ExperimentalSolver.hpp>
-
 namespace polyfem
 {
 	using namespace mesh;
@@ -88,11 +86,37 @@ namespace polyfem
 	{
 		Eigen::MatrixXd positions;
 		get_positions(positions);
-		solver->logger = &(logger());
 		solver->set_positions(positions);
 		solver->set_elements(test_elements);
-		solver->set_problematic_dofs(assembler->bad_indices_);
+		//solver->set_problematic_dofs(assembler->bad_indices_);
 		
+		std::set<int> bi;
+		if (args["solver"]["precondition_order_threshold"] > 0)
+		{
+			const int order_thresh = args["solver"]["precondition_order_threshold"];
+			for (int i = 0; i < assembler->basis_order_per_dof.size(); ++i)
+			{
+				if (assembler->basis_order_per_dof(i) >= order_thresh)
+				{
+					bi.insert(i);
+				}
+			}
+		}
+		
+		if (args["solver"]["precondition_quality_threshold"] < 1.0)
+		{
+			const double quality_thresh = args["solver"]["precondition_quality_threshold"];
+			for (int i = 0; i < assembler->element_quality_per_dof.size(); ++i)
+			{
+				if (assembler->element_quality_per_dof(i) <= quality_thresh)
+				{
+					bi.insert(i);
+				}
+			}
+		}
+
+		solver->set_problematic_dofs(bi);
+
 		assert(assembler->is_linear() && !is_contact_enabled());
 		assert(solve_data.rhs_assembler != nullptr);
 
@@ -182,11 +206,6 @@ namespace polyfem
 		// --------------------------------------------------------------------
 
 		solve_linear(step, static_linear_solver_cache, A, b, args["output"]["advanced"]["spectrum"], sol, pressure, user_post_step);
-		auto sp = dynamic_cast<polysolve::linear::ExperimentalSolver*>(static_linear_solver_cache.get());
-		//if (sp)
-		//{
-		//	amg_err = sp->amg_err;
-		//}
 	}
 
 	void State::init_linear_solve(Eigen::MatrixXd &sol, const double t, const InitialConditionOverride *ic_override)

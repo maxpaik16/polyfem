@@ -49,6 +49,9 @@ namespace polyfem::solver
 		virtual double normalize_forms();
 		bool project_to_psd_ = false;
 
+		Eigen::VectorXd contact_force_per_dof;
+		Eigen::VectorXd stress_per_dof;
+
 	protected:
 		std::vector<std::shared_ptr<Form>> forms_;
 	};
