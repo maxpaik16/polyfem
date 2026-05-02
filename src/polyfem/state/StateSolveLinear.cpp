@@ -135,6 +135,8 @@ namespace polyfem
 		else
 			boundary_nodes_tmp = boundary_nodes;
 
+		const std::string base_save_path = args["output"]["data"]["stiffness_mat"];
+
 		Eigen::VectorXd x;
 		stats.spectrum = dirichlet_solve(
 			*solver,
@@ -143,11 +145,19 @@ namespace polyfem
 			boundary_nodes_tmp,
 			x,
 			precond_num,
-			args["output"]["data"]["stiffness_mat"],
+			base_save_path.empty() ? base_save_path : base_save_path + "_A.mtx",
 			compute_spectrum,
 			assembler->is_fluid(),
 			use_avg_pressure);
 
+		
+		if (!base_save_path.empty())
+		{
+			Eigen::saveMarketVector(b, base_save_path + "_b.mtx");
+			Eigen::saveMarketVector(assembler->element_quality_per_dof, base_save_path + "_el_quality.mtx");
+			Eigen::saveMarketVector(assembler->basis_order_per_dof, base_save_path + "_basis_order.mtx");
+		}
+		
 		if (has_periodic_bc())
 		{
 			sol = periodic_bc->periodic_to_full(full_size, x);
