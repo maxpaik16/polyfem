@@ -34,6 +34,36 @@ namespace polyfem
 	using namespace solver;
 	using namespace io;
 
+	namespace {
+			template <typename Derived>
+			bool saveMarketDense(const Eigen::DenseBase<Derived>& mat, const std::string& filename) {
+				std::ofstream out(filename);
+				if (!out) return false;
+
+				// 1. Write the Matrix Market Header
+				out << "%%MatrixMarket matrix array ";
+				if constexpr (std::is_integral_v<typename Derived::Scalar>) {
+					out << "integer";
+				} else {
+					out << "real"; 
+				}
+				out << " general\n";
+
+				// 2. Write dimensions
+				out << mat.rows() << " " << mat.cols() << "\n";
+
+				// 3. Write data (Matrix Market format is strictly column-major)
+				for (int j = 0; j < mat.cols(); ++j) {
+					for (int i = 0; i < mat.rows(); ++i) {
+						out << mat(i, j) << " ";
+					}
+					out << "\n";
+				}
+				
+				return true;
+			}
+	}
+
 	void State::build_stiffness_mat(StiffnessMatrix &stiffness)
 	{
 		igl::Timer timer;
@@ -156,6 +186,9 @@ namespace polyfem
 			Eigen::saveMarketVector(b, base_save_path + "_b.mtx");
 			Eigen::saveMarketVector(assembler->element_quality_per_dof, base_save_path + "_el_quality.mtx");
 			Eigen::saveMarketVector(assembler->basis_order_per_dof, base_save_path + "_basis_order.mtx");
+
+			saveMarketDense(positions, base_save_path + "_positions.mtx");
+			saveMarketDense(test_elements, base_save_path + "_elements.mtx");
 		}
 		
 		if (has_periodic_bc())
