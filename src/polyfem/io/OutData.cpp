@@ -1632,12 +1632,15 @@ namespace polyfem::io
 
 		if (assembler.is_linear())
 		{
-			Eigen::MatrixXd cell_conditioning(assembler.element_conds.size(), 1); 
-			for (int e = 0; e < assembler.element_conds.size(); ++e)
+			if (assembler.element_conds.size() > 0)
 			{
-				cell_conditioning(e, 0) = assembler.element_conds[e];
+				Eigen::MatrixXd cell_conditioning(assembler.element_conds.size(), 1); 
+				for (int e = 0; e < assembler.element_conds.size(); ++e)
+				{
+					cell_conditioning(e, 0) = assembler.element_conds[e];
+				}
+				writer.add_cell_field("element_conditioning", cell_conditioning);
 			}
-			writer.add_cell_field("element_conditioning", cell_conditioning);
 			
 			if (state.amg_err.size() > 0)
 			{				
@@ -2078,92 +2081,6 @@ namespace polyfem::io
 				writer.add_field("normalized_row_norms", norm_row_norms_fun);
 				writer.add_field("row_sums", row_sum_fun);
 
-				if (assembler.is_linear() && assembler.name() != "Laplacian")
-				{
-					std::vector<std::shared_ptr<polyfem::solver::Form>>& forms = state.solve_data.nl_problem->forms();
-					std::vector<std::set<int>> global_element_indices = assembler.global_element_indices_;
-					Eigen::MatrixXd cell_conditioning(assembler.element_conds.size(), 1); 
-					std::set<int> enabled_forms;
-					for (int i = 0; i < forms.size(); ++i)
-					{
-						if (forms[i]->enabled())
-						{
-							enabled_forms.insert(i);
-						}
-					}
-					enabled_forms.insert(forms.size());
-					enabled_forms.insert(forms.size() + 1);
-
-					for (int i = 0; i < forms.size() + 2; ++i)
-					{
-						if (enabled_forms.count(i) == 0)
-						{
-							continue;
-						}
-
-						cell_conditioning.setZero();
-					
-						if (i == forms.size())
-						{
-							state.solve_data.nl_problem->use_full_size();
-							state.solve_data.nl_problem->hessian(sol, hessian);
-							state.solve_data.nl_problem->use_reduced_size();
-						}
-						else if (i == forms.size() + 1)
-						{
-							std::shared_ptr<polyfem::solver::FullNLProblem> penalty_problem = state.solve_data.nl_problem->get_penalty_problem();
-							penalty_problem->hessian(sol, hessian);
-						}
-						else
-						{
-							forms[i]->second_derivative(sol, hessian);
-						}
-
-						
-						for (int e = 0; e < global_element_indices.size(); ++e)
-						{
-							Eigen::MatrixXd local_hessian(global_element_indices[e].size(), global_element_indices[e].size());
-							local_hessian.setZero();
-							for (int k : global_element_indices[e])
-							{
-								for (StiffnessMatrix::InnerIterator it(hessian, k); it; ++it)
-								{
-									auto ind_it = global_element_indices[e].find(it.col());
-									if (ind_it != global_element_indices[e].end())
-									{
-										auto ind_2_it = global_element_indices[e].find(it.row());
-										local_hessian(std::distance(global_element_indices[e].begin(), ind_2_it), std::distance(global_element_indices[e].begin(), ind_it)) = it.value();
-									}
-								}
-							}
-							
-							Eigen::EigenSolver<Eigen::MatrixXd> es(local_hessian);
-							auto abs_evs = es.eigenvalues().cwiseAbs();
-							double max_ev = 0;
-							double min_ev = 1e100;
-							
-							for (int i = 0; i < abs_evs.size(); ++i)
-							{
-								if (abs_evs(i) > 1e-8)
-								{
-									max_ev = std::max(max_ev, abs_evs(i));
-									min_ev = std::min(min_ev, abs_evs(i));
-								}
-							}
-							cell_conditioning(e, 0) = max_ev / min_ev;
-						} 
-						std::string f_name; 
-						if (i < forms.size())
-						{
-							f_name = forms[i]->name();
-						}
-						else
-						{
-							f_name = i == forms.size() ? "full" : "penalty";
-						}
-						writer.add_cell_field("element_conditioning_" + f_name, cell_conditioning);
-					}	
-				}
 			}
 			catch (std::exception &)
 			{
