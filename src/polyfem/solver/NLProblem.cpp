@@ -616,14 +616,20 @@ namespace polyfem::solver
 			if (penalty_forms_.size() == 1 && penalty_forms_.front()->can_project())
 			{
 				penalty_forms_.front()->project_gradient(grad);
-				penalty_forms_.front()->project_gradient(contact_force_per_dof);
-				penalty_forms_.front()->project_gradient(stress_per_dof);
+				if (contact_force_per_dof.size() > 0)
+					penalty_forms_.front()->project_gradient(contact_force_per_dof);
+
+				if (stress_per_dof.size() > 0)
+					penalty_forms_.front()->project_gradient(stress_per_dof);
 			}
 			else
 			{
 				grad = Q2t_ * grad;
-				contact_force_per_dof = Q2t_ * contact_force_per_dof;
-				stress_per_dof = Q2t_ * stress_per_dof;
+				if (contact_force_per_dof.size() > 0)
+					contact_force_per_dof = Q2t_ * contact_force_per_dof;
+
+				if (stress_per_dof.size() > 0)
+					stress_per_dof = Q2t_ * stress_per_dof;
 			}
 		}
 		else if (penalty_problem_)
@@ -643,13 +649,19 @@ namespace polyfem::solver
 			full_hessian_to_reduced_hessian(hessian);
 			if (penalty_forms_.size() == 1 && penalty_forms_.front()->can_project())
 			{
-				penalty_forms_.front()->project_diag(basis_order_per_dof);
-				penalty_forms_.front()->project_diag(element_quality_per_dof);
+				if (basis_order_per_dof.size() > 0)
+					penalty_forms_.front()->project_diag(basis_order_per_dof);
+
+				if (element_quality_per_dof.size() > 0)
+					penalty_forms_.front()->project_diag(element_quality_per_dof);
 			}
 			else
 			{
-				basis_order_per_dof = Q2t_ * basis_order_per_dof * Q2_;
-				element_quality_per_dof = Q2t_ * element_quality_per_dof * Q2_;
+				if (basis_order_per_dof.size() > 0)
+					basis_order_per_dof = Q2t_ * basis_order_per_dof.asDiagonal() * Q2_;
+			
+				if (element_quality_per_dof.size() > 0)
+					element_quality_per_dof = Q2t_ * element_quality_per_dof.asDiagonal() * Q2_;
 			}
 		}
 		else if (penalty_problem_)

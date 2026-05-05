@@ -44,6 +44,8 @@ if(EIGEN_MPL2_ONLY)
   target_compile_definitions(Eigen3_Eigen INTERFACE EIGEN_MPL2_ONLY)
 endif()
 
+target_compile_definitions(Eigen3_Eigen INTERFACE EIGEN_STACK_ALLOCATION_LIMIT=524266)
+
 if(EIGEN_DONT_VECTORIZE)
   target_compile_definitions(Eigen3_Eigen INTERFACE EIGEN_DONT_VECTORIZE)
 endif()

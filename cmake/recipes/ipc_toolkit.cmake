@@ -10,4 +10,4 @@ message(STATUS "Third-party: creating target 'ipc::toolkit'")
 set(IPC_TOOLKIT_WITH_CUDA OFF CACHE INTERNAL "" FORCE)
 
 include(CPM)
-CPMAddPackage("gh:ipc-sim/ipc-toolkit#9a704eae1a32297fa6b8dee4e92d047c8ca4ebeb")
+CPMAddPackage("gh:maxpaik16/ipc-toolkit#68a87c116e448f8d22537ab5995d91affad78b25")

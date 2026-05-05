@@ -1632,37 +1632,42 @@ namespace polyfem::io
 
 		if (assembler.is_linear())
 		{
-			
-			if (state.amg_err.size() > 0)
-			{				
-				Eigen::MatrixXd amg_err_fun(state.amg_err.size(), 0);
-				Evaluator::interpolate_function(
-						mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
-						state.polys, state.polys_3d, ref_element_sampler,
-						points.rows(), state.amg_err, amg_err_fun, opts.use_sampler, opts.boundary_only);
-
-				if (obstacle.n_vertices() > 0)
-				{
-					amg_err_fun.conservativeResize(amg_err_fun.rows() + obstacle.n_vertices(), amg_err_fun.cols());
-					amg_err_fun.bottomRows(obstacle.n_vertices()).setZero();
-				}
-				writer.add_field("amg_err", amg_err_fun);
-			}
-
-			if (assembler.element_quality_per_dof.size() > 0)
+			try 
 			{
-				Eigen::MatrixXd eq_err_fun(assembler.element_quality_per_dof.size(), 0);
-				Evaluator::interpolate_function(
-						mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
-						state.polys, state.polys_3d, ref_element_sampler,
-						points.rows(), assembler.element_quality_per_dof, eq_err_fun, opts.use_sampler, opts.boundary_only);
+				if (state.amg_err.size() > 0)
+				{				
+					Eigen::MatrixXd amg_err_fun(state.amg_err.size(), 0);
+					Evaluator::interpolate_function(
+							mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
+							state.polys, state.polys_3d, ref_element_sampler,
+							points.rows(), state.amg_err, amg_err_fun, opts.use_sampler, opts.boundary_only);
 
-				if (obstacle.n_vertices() > 0)
-				{
-					eq_err_fun.conservativeResize(eq_err_fun.rows() + obstacle.n_vertices(), eq_err_fun.cols());
-					eq_err_fun.bottomRows(obstacle.n_vertices()).setZero();
+					if (obstacle.n_vertices() > 0)
+					{
+						amg_err_fun.conservativeResize(amg_err_fun.rows() + obstacle.n_vertices(), amg_err_fun.cols());
+						amg_err_fun.bottomRows(obstacle.n_vertices()).setZero();
+					}
+					writer.add_field("amg_err", amg_err_fun);
 				}
-				writer.add_field("element_quality", eq_err_fun);
+
+				if (assembler.element_quality_per_dof.size() > 0)
+				{
+					Eigen::MatrixXd eq_err_fun(assembler.element_quality_per_dof.size(), 0);
+					Evaluator::interpolate_function(
+							mesh, problem.is_scalar(), bases, disc_orders, disc_ordersq,
+							state.polys, state.polys_3d, ref_element_sampler,
+							points.rows(), assembler.element_quality_per_dof, eq_err_fun, opts.use_sampler, opts.boundary_only);
+
+					if (obstacle.n_vertices() > 0)
+					{
+						eq_err_fun.conservativeResize(eq_err_fun.rows() + obstacle.n_vertices(), eq_err_fun.cols());
+						eq_err_fun.bottomRows(obstacle.n_vertices()).setZero();
+					}
+					writer.add_field("element_quality", eq_err_fun);
+				}
+			}
+			catch (std::exception &)
+			{
 			}
 		}
 
