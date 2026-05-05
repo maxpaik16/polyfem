@@ -129,7 +129,7 @@ namespace polyfem::solver
 			TVector tmp;
 			f->first_derivative(x, tmp);
 
-			std::string name = f->name();
+			const std::string name = f->name();
 			if (name == "barrier-contact" || name == "smooth-contact" || name == "normal-adhesion")
 			{
 				contact_force_per_dof += tmp.cwiseAbs();
@@ -146,10 +146,7 @@ namespace polyfem::solver
 
 	void FullNLProblem::hessian(const TVector &x, THessian &hessian)
 	{
-		std::vector<std::set<int>> global_element_indices;
 		hessian.resize(x.size(), x.size());
-		THessian contact_hessian;
-		contact_hessian.resize(x.size(), x.size());
 		for (auto &f : forms_)
 		{
 			if (!f->enabled())
@@ -159,7 +156,14 @@ namespace polyfem::solver
 
 			f->set_project_to_psd(project_to_psd_);
 			f->second_derivative(x, tmp);
-			hessian += tmp;			
+			hessian += tmp;		
+			
+			const std::string name = f->name();
+			if (name == "elastic")
+			{
+				basis_order_per_dof = f->basis_order_per_dof.cast<double>();
+				element_quality_per_dof = f->element_quality_per_dof;
+			}
 		}
 	}
 

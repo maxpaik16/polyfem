@@ -189,13 +189,9 @@ namespace polyfem::assembler
 			// (potentially parallel) loop over elements
 			// Note that n_bases is the number of elements since ach ElementBases object stores
 			// all local basis functions on a given element
-			element_conds.resize(n_bases);
 			std::vector<std::set<int>> el_to_dofs(n_bases);
 			std::vector<int> el_orders(n_bases, 0);
 			std::vector<double> el_qualities(n_bases, 1);
-
-			global_element_indices_.clear();
-			global_element_indices_.resize(n_bases);
 
 			maybe_parallel_for(n_bases, [&](int start, int end, int thread_id) {
 				LocalThreadMatStorage &local_storage = get_local_thread_storage(storage, thread_id);
@@ -247,8 +243,6 @@ namespace polyfem::assembler
 					local_storage.da = vals.det.array() * quadrature.weights.array();
 					const int n_loc_bases = int(vals.basis_values.size());
 
-					Eigen::MatrixXd local_hessian(n_loc_bases * size(), n_loc_bases * size());
-
 					for (int i = 0; i < n_loc_bases; ++i)
 					{
 						// const AssemblyValues &values_i = vals.basis_values[i];
@@ -273,14 +267,11 @@ namespace polyfem::assembler
 								for (int m = 0; m < size(); ++m)
 								{
 									const double local_value = stiffness_val(n * size() + m);
-									local_hessian(i * size() + m, j * size() + n) = local_value;
-									local_hessian(j * size() + n, i * size() + m) = local_value;
 
 									// loop over the global nodes corresponding to local element (useful for non-conforming cases)
 									for (size_t ii = 0; ii < global_i.size(); ++ii)
 									{
 										const auto gi = global_i[ii].index * size() + m;
-										global_element_indices_[e].insert(gi);
 										el_to_dofs[e].insert(gi);
 										const auto wi = global_i[ii].val;
 
@@ -310,21 +301,6 @@ namespace polyfem::assembler
 							// if (!vals.has_parameterization) { logger().trace("-- t1: " {}, t1.getElapsedTime()); }
 						}
 					}
-
-					Eigen::EigenSolver<Eigen::MatrixXd> es(local_hessian);
-					auto abs_evs = es.eigenvalues().cwiseAbs();
-					double max_ev = 0;
-					double min_ev = 1e100;
-					for (int i = 0; i < abs_evs.size(); ++i)
-					{
-						if (abs_evs(i) > 1e-8)
-						{
-							max_ev = std::max(max_ev, abs_evs(i));
-							min_ev = std::min(min_ev, abs_evs(i));
-						}
-					}
-					element_conds[e] = max_ev / min_ev;
-					//std::cout << name() << "LA: " << element_conds[e] << std::endl;
 
 					// timer.stop();
 					// if (!vals.has_parameterization) { logger().trace("-- Timer: {}", timer.getElapsedTime()); }
@@ -747,11 +723,9 @@ namespace polyfem::assembler
 		igl::Timer timer;
 		timer.start();
 
-		global_element_indices_.clear();
-		global_element_indices_.resize(n_bases);
-
-		local_hessians_.clear();
-		local_hessians_.resize(n_bases);
+		std::vector<std::set<int>> el_to_dofs(n_bases);
+		std::vector<int> el_orders(n_bases, 0);
+		std::vector<double> el_qualities(n_bases, 1);
 
 		maybe_parallel_for(n_bases, [&](int start, int end, int thread_id) {
 			LocalThreadMatStorage &local_storage = get_local_thread_storage(storage, thread_id);
@@ -767,8 +741,38 @@ namespace polyfem::assembler
 				local_storage.da = vals.det.array() * quadrature.weights.array();
 				const int n_loc_bases = int(vals.basis_values.size());
 
+				for (auto &b : bases[e].bases)
+				{
+					el_orders[e] = std::max(el_orders[e], b.order());
+				}
+
+				for (Eigen::MatrixXd JinvT : vals.jac_it)
+				{
+					Eigen::MatrixXd J = JinvT.inverse().transpose();
+					Eigen::MatrixXd T;
+					double dim;
+					if (vals.is_volume_)
+					{
+						Eigen::MatrixXd Winv(3, 3);
+						Winv << 1.0, -1.0 / sqrt(3.0), -1.0 / sqrt(6.0), 
+								0.0, 2.0 / sqrt(3.0), -1.0 / sqrt(6.0),
+								0.0, 0.0, sqrt(3.0 / 2.0);
+						T = J * Winv;
+						dim = 3;
+					}
+					else
+					{
+						Eigen::MatrixXd Winv(2, 2);
+						Winv << 1.0, -1.0 / sqrt(3.0),
+								0.0, 2.0 / sqrt(3.0);
+						T = J * Winv;
+						dim = 2;
+					}
+					double shape_score = dim * std::pow(T.determinant(), dim / 2.0) / T.squaredNorm();
+					el_qualities[e] = std::min(el_qualities[e], shape_score);
+				}
+
 				auto stiffness_val = assemble_hessian(NonLinearAssemblerData(vals, t, dt, displacement, displacement_prev, local_storage.da));
-				local_hessians_[e] = stiffness_val;
 				assert(stiffness_val.rows() == n_loc_bases * size());
 				assert(stiffness_val.cols() == n_loc_bases * size());
 
@@ -780,19 +784,12 @@ namespace polyfem::assembler
 						for (size_t ii = 0; ii < global_i.size(); ++ii)
 						{
 							const auto gi = global_i[ii].index * size() + m;
-							global_element_indices_[e].insert(gi);
+							el_to_dofs[e].insert(gi);
 						}
 					}
 				}
 
-				std::set<int> intersection;
-				std::set_intersection(
-					global_element_indices_[e].begin(), global_element_indices_[e].end(),
-					dofs_to_project.begin(), dofs_to_project.end(),
-					std::inserter(intersection, intersection.begin())
-				); 
-
-				if ((dofs_to_project.size() > 0 && intersection.size() > 0) || project_to_psd)
+				if (project_to_psd)
 				{
 					stiffness_val = ipc::project_to_psd(stiffness_val);
 				} 
@@ -868,6 +865,19 @@ namespace polyfem::assembler
 			mat_cache += *local_storage.cache;
 		}
 		hess = mat_cache.get_matrix();
+
+		basis_order_per_dof.resize(hess.rows());
+		basis_order_per_dof.setZero();
+		element_quality_per_dof.resize(hess.rows());
+		element_quality_per_dof.setConstant(1.0);
+		for (int i = 0; i < el_orders.size(); ++i)
+		{
+			for (auto index : el_to_dofs[i])
+			{
+				basis_order_per_dof(index) = std::max(el_orders[i], basis_order_per_dof(index));
+				element_quality_per_dof(index) = std::min(el_qualities[i], element_quality_per_dof(index));
+			}
+		}
 
 		timer.stop();
 		logger().trace("done merge assembly {}s...", timer.getElapsedTime());

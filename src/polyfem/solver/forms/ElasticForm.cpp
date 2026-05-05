@@ -321,13 +321,13 @@ namespace polyfem::solver
 		else
 		{
 			// NOTE: mat_cache_ is marked as mutable so we can modify it here
-			assembler_.dofs_to_project = dofs_to_project;
 			
 			assembler_.assemble_hessian(
 				is_volume_, n_bases_, project_to_psd_, bases_,
 				geom_bases_, ass_vals_cache_, t_, dt_, x, x_prev_, *mat_cache_, hessian);
 
-			assembler_.set_global_element_indices(global_element_indices);
+			basis_order_per_dof = assembler_.basis_order_per_dof;
+			element_quality_per_dof = assembler_.element_quality_per_dof;
 		}
 	}
 

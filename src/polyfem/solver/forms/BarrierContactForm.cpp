@@ -168,33 +168,8 @@ namespace polyfem::solver
 		gradv = collision_mesh_.to_full_dof(gradv);
 
 		last_grad = gradv;
-		Eigen::VectorXd grad_copy = gradv.cwiseAbs();
-		std::sort(grad_copy.data(), grad_copy.data()+grad_copy.size());
-		logger().debug("Max contact force unweighted: {}, Min contact force unweighted: {}", grad_copy.maxCoeff(), grad_copy.minCoeff());
-		const int index = grad_copy.size() * solver_cutoff_;
-		const double cutoff = grad_copy(index);
-		bad_indices.clear();
-		bad_indices.resize(1);
-		for (int i = 0; i < gradv.size(); ++i)
-		{
-			if (abs(gradv(i)) > 0)// && abs(gradv(i)) >= cutoff)
-			{
-				bad_indices[0].insert(i);
-				if (i % 3 == 0)
-				{
-					bad_indices[0].insert(i + 1);
-					bad_indices[0].insert(i + 2);
-				} else if (i % 3 == 1)
-				{
-					bad_indices[0].insert(i - 1);
-					bad_indices[0].insert(i + 1);
-				} else
-				{
-					bad_indices[0].insert(i - 2);
-					bad_indices[0].insert(i - 1);
-				};
-			}	
-		}
+		logger().debug("Max contact force unweighted: {}, Min contact force unweighted: {}", gradv.maxCoeff(), gradv.minCoeff());
+
 	}
 
 	void BarrierContactForm::second_derivative_unweighted(const Eigen::VectorXd &x, StiffnessMatrix &hessian) const
@@ -212,7 +187,6 @@ namespace polyfem::solver
 			psd_projection_method = ipc::PSDProjectionMethod::NONE;
 		}
 
-		//barrier_potential_.dofs_to_project = dofs_to_project;
 		hessian = barrier_potential_.hessian(collision_set_, collision_mesh_, compute_displaced_surface(x), psd_projection_method);
 		hessian = collision_mesh_.to_full_dof(hessian);
 	}

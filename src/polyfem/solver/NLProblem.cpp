@@ -641,6 +641,16 @@ namespace polyfem::solver
 		if (full_size() != current_size())
 		{
 			full_hessian_to_reduced_hessian(hessian);
+			if (penalty_forms_.size() == 1 && penalty_forms_.front()->can_project())
+			{
+				penalty_forms_.front()->project_diag(basis_order_per_dof);
+				penalty_forms_.front()->project_diag(element_quality_per_dof);
+			}
+			else
+			{
+				basis_order_per_dof = Q2t_ * basis_order_per_dof * Q2_;
+				element_quality_per_dof = Q2t_ * element_quality_per_dof * Q2_;
+			}
 		}
 		else if (penalty_problem_)
 		{
@@ -660,7 +670,7 @@ namespace polyfem::solver
 		{
 			for (int i = 0; i < contact_force_per_dof.size(); ++i)
 			{
-				if (contact_force_per_dof(i) > 0)
+				if (contact_force_per_dof(i) > 0.0)
 				{
 					bad_dofs.insert(i);
 				}
@@ -673,6 +683,30 @@ namespace polyfem::solver
 			for (int i = 0; i < stress_per_dof.size(); ++i)
 			{
 				if (stress_per_dof(i) > thresh)
+				{
+					bad_dofs.insert(i);
+				}
+			}
+		}
+
+		if (state_->args["solver"]["precondition_order_threshold"] > 0)
+		{
+			const double order_thresh = state_->args["solver"]["precondition_order_threshold"];
+			for (int i = 0; i < basis_order_per_dof.size(); ++i)
+			{
+				if (basis_order_per_dof(i) >= order_thresh)
+				{
+					bad_dofs.insert(i);
+				}
+			}
+		}
+		
+		if (state_->args["solver"]["precondition_quality_threshold"] < 1.0)
+		{
+			const double quality_thresh = state_->args["solver"]["precondition_quality_threshold"];
+			for (int i = 0; i < element_quality_per_dof.size(); ++i)
+			{
+				if (element_quality_per_dof(i) <= quality_thresh)
 				{
 					bad_dofs.insert(i);
 				}

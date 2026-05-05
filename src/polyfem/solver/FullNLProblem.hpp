@@ -51,6 +51,8 @@ namespace polyfem::solver
 
 		Eigen::VectorXd contact_force_per_dof;
 		Eigen::VectorXd stress_per_dof;
+		Eigen::VectorXd basis_order_per_dof;
+		Eigen::VectorXd element_quality_per_dof;
 
 	protected:
 		std::vector<std::shared_ptr<Form>> forms_;

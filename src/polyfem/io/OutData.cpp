@@ -1632,15 +1632,6 @@ namespace polyfem::io
 
 		if (assembler.is_linear())
 		{
-			if (assembler.element_conds.size() > 0)
-			{
-				Eigen::MatrixXd cell_conditioning(assembler.element_conds.size(), 1); 
-				for (int e = 0; e < assembler.element_conds.size(); ++e)
-				{
-					cell_conditioning(e, 0) = assembler.element_conds[e];
-				}
-				writer.add_cell_field("element_conditioning", cell_conditioning);
-			}
 			
 			if (state.amg_err.size() > 0)
 			{				

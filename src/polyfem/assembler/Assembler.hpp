@@ -58,7 +58,6 @@ namespace polyfem::assembler
 
 		mutable Eigen::VectorXi basis_order_per_dof;
 		mutable Eigen::VectorXd element_quality_per_dof;
-		mutable Eigen::VectorXd stress_per_dof;
 
 		virtual ~Assembler() = default;
 
@@ -129,22 +128,6 @@ namespace polyfem::assembler
 			const Eigen::MatrixXd &displacement_prev,
 			utils::MatrixCache &mat_cache,
 			StiffnessMatrix &grad) const { log_and_throw_error("Assemble hessian not implemented by {}!", name()); }
-
-		mutable std::vector<std::set<int>> global_element_indices_;
-		void set_global_element_indices(std::vector<std::set<int>> &global_element_indices) const
-		{
-			global_element_indices = global_element_indices_;
-		}
-
-		mutable std::vector<Eigen::MatrixXd> local_hessians_;
-		mutable std::vector<double> element_conds;
-		void get_local_hessians(std::vector<Eigen::MatrixXd> &local_hessians)
-		{
-			local_hessians = local_hessians_;
-		}
-
-		mutable std::vector<std::set<int>> bad_indices_;
-		double element_conditioning_threshold = 0.01;
 
 		// plotting (eg von mises), assembler is the name of the formulation
 		virtual void compute_scalar_value(

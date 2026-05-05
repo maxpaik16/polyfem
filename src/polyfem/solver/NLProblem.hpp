@@ -118,7 +118,6 @@ namespace polyfem::solver
 		Eigen::DiagonalMatrix<double, Eigen::Dynamic> lumped_mass_;
 		unsigned int total_step = 0;
 		StiffnessMatrix last_hessian;
-		double element_conditioning_threshold = 0.01;
 		int temp_n = 0;
 
 		TVector get_Q1R1iTb()
