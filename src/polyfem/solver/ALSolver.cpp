@@ -73,8 +73,8 @@ namespace polyfem::solver
 															  nl_solver_params, linear_solver, characteristic_length * scale, logger())
 														: nl_solverin;
 
-				nl_problem.set_positions(test_vertices.transpose());
-				nl_problem.set_elements(test_elements.transpose());
+				nl_problem.set_positions(test_vertices);
+				nl_problem.set_elements(test_elements);
 
 				nl_solver->minimize(nl_problem, tmp_sol);
 				nl_problem.finish();
@@ -152,8 +152,8 @@ namespace polyfem::solver
 														  nl_solver_params, linear_solver, characteristic_length * scale, logger())
 													: nl_solverin;
 
-			nl_problem.set_positions(test_vertices.transpose());
-			nl_problem.set_elements(test_elements.transpose());
+			nl_problem.set_positions(test_vertices);
+			nl_problem.set_elements(test_elements);
 										
 			nl_solver->minimize(nl_problem, tmp_sol);
 			nl_problem.finish();

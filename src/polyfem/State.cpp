@@ -1696,7 +1696,7 @@ namespace polyfem
 		timer.start();
 		logger().info("Solving {}", assembler->name());
 
-		if(assembler->is_linear())
+		if(is_problem_linear())
 		{
 			build_mesh_matrices(test_vertices, test_elements);
 			test_boundary_nodes.clear();
