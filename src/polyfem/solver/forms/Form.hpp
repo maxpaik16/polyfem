@@ -147,6 +147,7 @@ namespace polyfem::solver
 		
 		mutable Eigen::VectorXd element_quality_per_dof;
 		mutable Eigen::VectorXi basis_order_per_dof;
+		mutable std::vector<std::set<int>> contact_patches;
 
 	protected:
 		bool project_to_psd_ = false; ///< If true, the form's second derivative is projected to be positive semidefinite

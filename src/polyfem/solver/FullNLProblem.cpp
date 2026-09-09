@@ -133,6 +133,7 @@ namespace polyfem::solver
 			if (name == "barrier-contact" || name == "smooth-contact" || name == "normal-adhesion")
 			{
 				contact_force_per_dof += tmp.cwiseAbs();
+				contact_patches = f->contact_patches;
 			}
 			else if (name == "elastic")
 			{

@@ -621,6 +621,25 @@ namespace polyfem::solver
 
 				if (stress_per_dof.size() > 0)
 					penalty_forms_.front()->project_gradient(stress_per_dof);
+
+				for (auto &patch : contact_patches)
+				{
+					Eigen::VectorXd test(full_size());
+					test.setZero();
+					for (auto dof : patch)
+					{
+						test(dof) = 1.0;
+					}
+					penalty_forms_.front()->project_gradient(test);
+					patch.clear();
+					for (int i = 0; i < test.size(); ++i)
+					{
+						if (test(i) > 1e-12)
+						{
+							patch.insert(i);
+						}
+					}
+				}	
 			}
 			else
 			{

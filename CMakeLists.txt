@@ -136,6 +136,10 @@ add_subdirectory("${POLYFEM_SOURCE_DIR}")
 
 # Public include directory for PolyFEM
 target_include_directories(polyfem PUBLIC "${POLYFEM_INCLUDE_DIR}")
+include_directories(
+    /usr/lib/x86_64-linux-gnu/openmpi/include
+    /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi
+)
 
 # Use C++17
 target_compile_features(polyfem PUBLIC cxx_std_17)
