@@ -44,9 +44,9 @@ namespace polyfem::legacy
 	using namespace io;
 	using namespace utils;
 
-	std::shared_ptr<polysolve::nonlinear::Solver> State::make_nl_solver(bool for_al) const
+	std::shared_ptr<polysolve::nonlinear::Solver> State::make_nl_solver(bool for_al, const int dimension) const
 	{
-		return polysolve::nonlinear::Solver::create(for_al ? args["solver"]["augmented_lagrangian"]["nonlinear"] : args["solver"]["nonlinear"], args["solver"]["linear"], units.characteristic_length(), logger());
+		return polysolve::nonlinear::Solver::create(for_al ? args["solver"]["augmented_lagrangian"]["nonlinear"] : args["solver"]["nonlinear"], args["solver"]["linear"], units.characteristic_length(), logger(), true, args["solver"]["augmented_lagrangian"]["norm_type"], dimension);
 	}
 
 	void State::solve_transient_tensor_nonlinear(const int time_steps,
@@ -378,7 +378,7 @@ namespace polyfem::legacy
 
 		// ---------------------------------------------------------------------
 
-		std::shared_ptr<polysolve::nonlinear::Solver> nl_solver = make_nl_solver(true);
+		std::shared_ptr<polysolve::nonlinear::Solver> nl_solver = make_nl_solver(true, mesh->dimension());
 
 		ALSolver al_solver(
 			solve_data.al_form,

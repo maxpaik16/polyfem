@@ -841,7 +841,7 @@ namespace polyfem::varform
 
 	void ScalarVarForm::solve_static(Eigen::MatrixXd &sol, const ForwardStepCallback &post_step)
 	{
-		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, problem_dimension());
 		logger().info("{}...", solver->name());
 
 		const int gdiscr_order = mesh_->orders().size() <= 0 ? 1 : mesh_->orders().maxCoeff();
@@ -882,7 +882,7 @@ namespace polyfem::varform
 		assert(problem->is_time_dependent());
 		assert(rhs_assembler_ != nullptr);
 
-		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, problem_dimension());
 		logger().info("{}...", solver->name());
 
 		auto bdf = time_integrator::ImplicitTimeIntegrator::construct_bdf_integrator(

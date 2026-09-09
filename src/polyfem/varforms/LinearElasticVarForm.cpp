@@ -166,7 +166,7 @@ namespace polyfem::varform
 
 	void LinearElasticVarForm::solve_static_linear(Eigen::MatrixXd &sol, const ForwardStepCallback &post_step)
 	{
-		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, problem_dimension());
 		logger().info("{}...", solver->name());
 
 		rhs_assembler_->set_bc(
@@ -188,7 +188,7 @@ namespace polyfem::varform
 		assert(rhs_assembler_ != nullptr);
 		assert(solve_data_.time_integrator != nullptr && "Transient linear elasticity requires an initialized time integrator");
 
-		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, problem_dimension());
 		logger().info("{}...", solver->name());
 
 		save_timestep(t0, 0, t0, dt, sol);

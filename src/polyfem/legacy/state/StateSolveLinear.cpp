@@ -132,8 +132,9 @@ namespace polyfem::legacy
 
 		// --------------------------------------------------------------------
 
+		const bool is_scalar_or_mixed = problem->is_scalar() || mixed_assembler != nullptr;
 		static_linear_solver_cache =
-			polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+			polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, is_scalar_or_mixed ? 1 : mesh->dimension());
 		logger().info("{}...", static_linear_solver_cache->name());
 
 		// --------------------------------------------------------------------
@@ -237,7 +238,7 @@ namespace polyfem::legacy
 		// --------------------------------------------------------------------
 
 		auto solver =
-			polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+			polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, is_scalar_or_mixed ? 1 : mesh->dimension());
 		logger().info("{}...", solver->name());
 
 		// --------------------------------------------------------------------

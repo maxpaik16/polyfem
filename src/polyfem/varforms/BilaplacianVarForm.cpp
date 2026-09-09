@@ -635,7 +635,7 @@ namespace polyfem::varform
 
 	void BilaplacianVarForm::solve_static_linear(Eigen::MatrixXd &sol)
 	{
-		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, problem_dimension());
 		logger().info("{}...", solver->name());
 		const int gdiscr_order = mesh_->orders().size() <= 0 ? 1 : mesh_->orders().maxCoeff();
 		const QuadratureOrders boundary_samples = n_boundary_samples(space_.disc_orders.maxCoeff(), space_.disc_ordersq.maxCoeff(), gdiscr_order);
@@ -650,7 +650,7 @@ namespace polyfem::varform
 
 	void BilaplacianVarForm::solve_transient_linear(Eigen::MatrixXd &sol)
 	{
-		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger());
+		auto solver = polysolve::linear::Solver::create(args["solver"]["linear"], logger(), true, problem_dimension());
 		logger().info("{}...", solver->name());
 
 		Eigen::MatrixXd value, pressure;

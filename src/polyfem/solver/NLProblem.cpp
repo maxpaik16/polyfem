@@ -634,6 +634,42 @@ namespace polyfem::solver
 		return res;
 	}
 
+	Eigen::VectorXi NLProblem::block_mapping() const
+	{
+		// At full size the system is the plain node-major full DOF vector, so
+		// the solver's own default interleaved (row i -> i % dim) mapping
+		// already matches; only the reduced (post-projection) case needs an
+		// explicit mapping.
+		if (full_size() == current_size())
+			return Eigen::VectorXi();
+
+		if (!(penalty_forms_.size() == 1 && penalty_forms_.front()->can_project()))
+			return Eigen::VectorXi();
+
+		// The fast axis-aligned projection (see project_gradient/project_diag/
+		// project_hessian) is backed by a projection matrix with exactly one
+		// nonzero (=1) per column: reduced row `i` corresponds to full DOF
+		// constraint_projection_matrix().col(i)'s single row index. This holds
+		// for both a plain BCLagrangianForm and a StackedAugmentedLagrangianForm
+		// composed only of such axis-aligned blocks.
+		const StiffnessMatrix &proj = penalty_forms_.front()->constraint_projection_matrix();
+		assert(proj.rows() == full_size());
+
+		Eigen::VectorXi mapping(proj.cols());
+		for (int col = 0; col < proj.outerSize(); ++col)
+		{
+			int full_dof = -1;
+			for (StiffnessMatrix::InnerIterator it(proj, col); it; ++it)
+			{
+				assert(full_dof < 0 && "expected a single nonzero per column (axis-aligned projection)");
+				full_dof = it.row();
+			}
+			assert(full_dof >= 0);
+			mapping[col] = full_dof % dim;
+		}
+		return mapping;
+	}
+
 	void NLProblem::gradient(const TVector &x, TVector &grad)
 	{
 		FullNLProblem::gradient(reduced_to_full(x), grad);

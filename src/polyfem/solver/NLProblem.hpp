@@ -44,6 +44,15 @@ namespace polyfem::solver
 		virtual void gradient(const TVector &x, TVector &gradv) override;
 		virtual void hessian(const TVector &x, THessian &hessian) override;
 
+		/// @brief Per-row function (block) assignment for multigrid-style linear
+		/// solvers, only computed when there is a single penalty form that
+		/// supports the fast axis-aligned projection (a simple selection of
+		/// full-DOF rows, e.g. Dirichlet BCs applied via augmented Lagrangian).
+		/// Returns an empty vector otherwise (e.g. general/QR-projected
+		/// constraints), since that reduced space is not a row selection and a
+		/// per-row function id would not be meaningful.
+		Eigen::VectorXi block_mapping() const override;
+
 		virtual bool is_step_valid(const TVector &x0, const TVector &x1) override;
 		virtual bool is_step_collision_free(const TVector &x0, const TVector &x1) override;
 		virtual double max_step_size(const TVector &x0, const TVector &x1) override;

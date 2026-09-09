@@ -298,7 +298,8 @@ namespace polyfem::varform
 		std::shared_ptr<polysolve::nonlinear::Solver> nl_solver =
 			polysolve::nonlinear::Solver::create(
 				args["solver"]["augmented_lagrangian"]["nonlinear"],
-				args["solver"]["linear"], units.characteristic_length(), logger());
+				args["solver"]["linear"], units.characteristic_length(), logger(),
+				true, args["solver"]["augmented_lagrangian"]["norm_type"], mesh_->dimension());
 
 		solver::ALSolver al_solver(
 			solve_data_.al_form,
