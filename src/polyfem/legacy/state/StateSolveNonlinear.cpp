@@ -343,11 +343,18 @@ namespace polyfem::legacy
 		}
 
 		const int ndof = n_bases * mesh->dimension();
+		// NLProblem's own solver_ only factorizes the small Q2^T Q2 constraint-
+		// elimination system (unrelated to the Hessian solve the AL/Newton
+		// solvers use args["solver"]["linear"] for), so it shouldn't inherit
+		// e.g. a Hybrid/AMGF choice meant for the full-size Hessian.
+		json internal_linear_args = args["solver"]["linear"];
+		internal_linear_args["solver"] = "Eigen::SimplicialLDLT";
 		solve_data.nl_problem = std::make_shared<NLProblem>(
 			ndof, t, forms, solve_data.al_form,
-			polysolve::linear::Solver::create(args["solver"]["linear"], logger()), characteristic_length, characteristic_force_density, pure_mass, mesh->dimension());
+			polysolve::linear::Solver::create(internal_linear_args, logger()), characteristic_length, characteristic_force_density, pure_mass, mesh->dimension());
 		solve_data.nl_problem->init(sol);
 		solve_data.nl_problem->update_quantities(t, sol);
+		solve_data.nl_problem->args_ = &args;
 		// --------------------------------------------------------------------
 
 		stats.solver_info = json::array();
