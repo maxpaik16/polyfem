@@ -977,6 +977,7 @@ namespace polyfem::varform
 			dim, true);
 		fsi_problem_->init(sol);
 		fsi_problem_->update_quantities(t, sol);
+		fsi_problem_->args_ = &args;
 		update_transient_form_weights();
 		stats.solver_info = json::array();
 	}

@@ -903,6 +903,7 @@ namespace polyfem::varform
 			characteristic_length, characteristic_force_density, pure_mass_, mesh_->dimension());
 		solve_data_.nl_problem->init(sol);
 		solve_data_.nl_problem->update_quantities(t, sol);
+		solve_data_.nl_problem->args_ = &args;
 
 		stats.solver_info = json::array();
 	}

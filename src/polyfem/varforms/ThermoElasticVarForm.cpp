@@ -987,6 +987,7 @@ namespace polyfem::varform
 			problem->is_time_dependent());
 		solve_data_.nl_problem->init(sol);
 		solve_data_.nl_problem->update_quantities(problem->is_time_dependent() ? t0 + dt : 1.0, sol);
+		solve_data_.nl_problem->args_ = &args;
 		stats.solver_info = json::array();
 
 		if (!problem->is_time_dependent())

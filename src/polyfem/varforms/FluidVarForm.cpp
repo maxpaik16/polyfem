@@ -1086,6 +1086,7 @@ namespace polyfem::varform
 			residual_mass, mesh_->dimension(), /*is_residual=*/true);
 		nl_problem_->init(sol);
 		nl_problem_->update_quantities(t, sol);
+		nl_problem_->args_ = &args;
 		stats.solver_info = json::array();
 	}
 
