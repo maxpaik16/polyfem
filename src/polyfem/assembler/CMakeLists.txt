@@ -2,6 +2,7 @@ set(SOURCES
 	Assembler.cpp
 	Assembler.hpp
 	AssemblerData.hpp
+	LocalHessian.hpp
 	AssemblerUtils.cpp
 	AssemblerUtils.hpp
 	AssemblyValsCache.cpp
@@ -13,12 +14,18 @@ set(SOURCES
 	Bilaplacian.hpp
 	ElementAssemblyValues.cpp
 	ElementAssemblyValues.hpp
-	GenericElastic.cpp
 	GenericElastic.hpp
+	GenericElasticMR.cpp
+	GenericElasticOgden.cpp
+	GenericElasticNH.cpp
+	GenericElasticFiber.cpp
+	GenericElasticOther.cpp
 	GenericFiber.cpp
 	GenericFiber.hpp
 	GenericProblem.cpp
 	GenericProblem.hpp
+	GrowthElasticity.cpp
+	GrowthElasticity.hpp
 	Helmholtz.cpp
 	Helmholtz.hpp
 	HookeLinearElasticity.cpp

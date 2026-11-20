@@ -10,7 +10,7 @@
 
 namespace polyfem::assembler
 {
-	void SumModel::add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path)
+	void SumModel::add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources)
 	{
 		assert(size() == 2 || size() == 3);
 		if (params.count("models") == 0)
@@ -40,7 +40,7 @@ namespace polyfem::assembler
 			json model = models[i];
 			if (params.contains(MATERIAL_ELEMENT_INDEX))
 				model[MATERIAL_ELEMENT_INDEX] = params[MATERIAL_ELEMENT_INDEX];
-			assemblers_[i]->add_multimaterial(index, model, units, root_path);
+			assemblers_[i]->add_multimaterial(index, model, units, resources);
 		}
 	}
 
@@ -66,16 +66,17 @@ namespace polyfem::assembler
 		return gradient;
 	}
 
-	Eigen::MatrixXd
-	SumModel::assemble_hessian(const NonLinearAssemblerData &data) const
+	void SumModel::assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const
 	{
-		Eigen::MatrixXd hessian = assemblers_.front()->assemble_hessian(data);
+		assemblers_.front()->assemble_hessian(data, hessian);
+		LocalHessian contribution;
 		for (size_t i = 1; i < assemblers_.size(); ++i)
 		{
-			const auto assembler = assemblers_[i];
-			hessian += assembler->assemble_hessian(data);
+			assemblers_[i]->assemble_hessian(data, contribution);
+			hessian.visit([&](auto &H) {
+				contribution.visit([&](const auto &term) { H += term; });
+			});
 		}
-		return hessian;
 	}
 
 	double SumModel::compute_energy(const NonLinearAssemblerData &data) const

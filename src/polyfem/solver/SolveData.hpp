@@ -6,6 +6,7 @@
 #include <polyfem/basis/ElementBases.hpp>
 #include <polyfem/mesh/Obstacle.hpp>
 #include <polyfem/mesh/LocalBoundary.hpp>
+#include <polyfem/io/ResourceIO.hpp>
 #include <polyfem/utils/JSONUtils.hpp>
 #include <polyfem/solver/forms/lagrangian/BCLagrangianForm.hpp>
 
@@ -59,6 +60,7 @@ namespace polyfem::solver
 		std::vector<std::shared_ptr<Form>> init_forms(
 			// General
 			const Units &units,
+			const io::ResourceIO &resources,
 			const int dim,
 			const double t,
 			const Eigen::VectorXi &in_node_to_node,
@@ -112,8 +114,12 @@ namespace polyfem::solver
 			const bool use_area_weighting,
 			const bool use_improved_max_operator,
 			const bool use_physical_barrier,
+			const std::string &collision_set_type,
+			const bool skip_obstacles,
+			const std::string &barrier,
 			const json &barrier_stiffness,
 			const double initial_barrier_stiffness,
+			const double dhat_epsilon_scale,
 			const ipc::BroadPhaseMethod broad_phase,
 			const double ccd_tolerance,
 			const long ccd_max_iterations,
@@ -125,6 +131,10 @@ namespace polyfem::solver
 			const double alpha_n,
 			const bool use_adaptive_dhat,
 			const double min_distance_ratio,
+
+			// ESP contact form
+			const bool use_esp_formulation,
+			json esp_params,
 
 			// Normal Adhesion Form
 			const bool adhesion_enabled,

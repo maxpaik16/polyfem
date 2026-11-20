@@ -23,6 +23,28 @@ namespace polyfem::varform
 {
 	using namespace varform::internal;
 
+	void BilaplacianVarForm::serialize_checkpoint(
+		io::CheckpointWriter &writer,
+		const Eigen::MatrixXd &solution,
+		const io::CheckpointMetadata &metadata) const
+	{
+		VarForm::serialize_checkpoint(writer, solution, metadata);
+		write_checkpoint_ordering(writer, "primary", space_);
+		write_checkpoint_ordering(writer, "pressure", pressure_space_);
+	}
+
+	void BilaplacianVarForm::deserialize_checkpoint(
+		const io::CheckpointReader &reader,
+		Eigen::MatrixXd &solution)
+	{
+		VarForm::deserialize_checkpoint(reader, solution);
+		validate_checkpoint_solution(solution, stacked_ndof());
+		reorder_checkpoint_block(reader, "primary", space_, 1, 0, solution);
+		reorder_checkpoint_block(
+			reader, "pressure", pressure_space_,
+			1, space_.n_bases, solution);
+	}
+
 	void BilaplacianVarForm::reset()
 	{
 		VarForm::reset();
@@ -54,6 +76,13 @@ namespace polyfem::varform
 
 	void BilaplacianVarForm::init(const std::string &formulation, const Units &units, const json &args, const std::string &out_path)
 	{
+		for (const std::string field : {"pressure_boundary", "pressure_cavity"})
+		{
+			const json::json_pointer path("/boundary_conditions/" + field);
+			if (args.contains(path) && !args.at(path).empty())
+				log_and_throw_error("{} does not support boundary_conditions.{}.", formulation, field);
+		}
+
 		VarForm::init(formulation, units, args, out_path);
 		const bool is_time_dependent = args.contains("time") && !args["time"].is_null();
 		const json &discr_orders = args.at("space").at("discr_order");
@@ -103,19 +132,18 @@ namespace polyfem::varform
 			problem->clear();
 			json tmp;
 			tmp["is_time_dependent"] = is_time_dependent;
-			problem->set_parameters(tmp, root_path);
+			problem->set_parameters(tmp, resources_);
 
 			auto bc = args["boundary_conditions"];
-			bc["root_path"] = root_path;
-			problem->set_parameters(bc, root_path);
-			problem->set_parameters(args["initial_conditions"], root_path);
-			problem->set_parameters(args["output"], root_path);
+			problem->set_parameters(bc, resources_);
+			problem->set_parameters(args["initial_conditions"], resources_);
+			problem->set_parameters(args["output"], resources_);
 		}
 		else
 		{
 			problem = problem::ProblemFactory::factory().get_problem(args["preset_problem"]["type"]);
 			problem->clear();
-			problem->set_parameters(args["preset_problem"], root_path);
+			problem->set_parameters(args["preset_problem"], resources_);
 		}
 
 		problem->set_units(*primary_assembler_, units);
@@ -306,7 +334,7 @@ namespace polyfem::varform
 			*primary_assembler_, *mesh_, nullptr,
 			boundary_.dirichlet_nodes, boundary_.neumann_nodes,
 			boundary_.dirichlet_nodes_position, boundary_.neumann_nodes_position,
-			n_bases, 1, bases, space_.geometry_basis_list(), ass_vals_cache, *problem,
+			n_bases, 1, bases, space_.geometry_basis_list(), ass_vals_cache, *problem, resources_,
 			args["space"]["advanced"]["bc_method"],
 			rhs_solver_params,
 			fe_space_id);
@@ -389,7 +417,6 @@ namespace polyfem::varform
 			log_and_throw_error("Polygonal bases are not supported in mixed formulations!");
 
 		const int prev_bases = space_.n_bases;
-		const auto &all_boundary = boundary_.total_local_boundary;
 		const bool use_corner_quadrature = args["space"]["advanced"]["use_corner_quadrature"];
 		const int quadrature_order = args["space"]["advanced"]["quadrature_order"].get<int>();
 		const int mass_quadrature_order = args["space"]["advanced"]["mass_quadrature_order"].get<int>();
@@ -424,21 +451,25 @@ namespace polyfem::varform
 		}
 
 		boundary_.clear_boundary_conditions();
-		for (const auto &lb : all_boundary)
-			boundary_.local_boundary.emplace_back(lb);
-		pressure_boundary_.clear_boundary_conditions();
-
 		problem->setup_bc(
-			mesh, space_.n_bases,
-			space_.basis_list(), space_.geometry_basis_list(), pressure_space_.basis_list(),
-			boundary_.local_boundary,
-			boundary_.boundary_nodes,
-			boundary_.local_neumann_boundary,
-			boundary_.local_pressure_boundary,
-			boundary_.local_pressure_cavity,
-			pressure_boundary_.boundary_nodes,
-			boundary_.dirichlet_nodes, boundary_.neumann_nodes);
-		pressure_boundary_.normalize_boundary_nodes();
+			mesh, assembler::BoundaryKind::Dirichlet, solution_space_id_,
+			space_.basis_list(), boundary_.total_local_boundary,
+			boundary_.local_boundary, boundary_.boundary_nodes, 1);
+		problem->setup_bc(
+			mesh, assembler::BoundaryKind::Neumann, solution_space_id_,
+			boundary_.total_local_boundary, boundary_.local_neumann_boundary);
+
+		problem->setup_nodal_bc(
+			mesh, assembler::BoundaryKind::Dirichlet, solution_space_id_, space_.n_bases, boundary_.dirichlet_nodes);
+		problem->setup_nodal_bc(
+			mesh, assembler::BoundaryKind::Neumann, solution_space_id_, space_.n_bases, boundary_.neumann_nodes);
+
+		for (const int n_id : boundary_.dirichlet_nodes)
+		{
+			const int tag = mesh.get_node_id(n_id);
+			if (problem->is_nodal_dimension_dirichlet(n_id, tag, 0, solution_space_id_))
+				boundary_.boundary_nodes.push_back(n_id);
+		}
 
 		rebuild_node_positions(space_.basis_list(), boundary_.dirichlet_nodes, boundary_.dirichlet_nodes_position);
 		rebuild_node_positions(space_.basis_list(), boundary_.neumann_nodes, boundary_.neumann_nodes_position);
@@ -463,7 +494,6 @@ namespace polyfem::varform
 		igl::Timer timer;
 		json p_params = {};
 		p_params["formulation"] = primary_assembler_->name();
-		p_params["root_path"] = root_path;
 		{
 			RowVectorNd min, max, delta;
 			mesh.bounding_box(min, max);
@@ -473,7 +503,7 @@ namespace polyfem::varform
 			else
 				p_params["bbox_center"] = {delta(0), delta(1)};
 		}
-		problem->set_parameters(p_params, root_path);
+		problem->set_parameters(p_params, resources_);
 
 		rhs_.resize(0, 0);
 
@@ -548,20 +578,12 @@ namespace polyfem::varform
 		if (sol.size() <= 0)
 		{
 			assert(rhs_assembler_ != nullptr);
-			const bool was_solution_loaded = read_initial_x_from_file(
-				resolve_input_path(args["input"]["data"]["state"]), "u",
-				args["input"]["data"]["reorder"], space_.space_in_node_to_node,
-				/*dim=*/1, sol);
-
-			if (!was_solution_loaded)
+			if (problem->is_time_dependent())
+				rhs_assembler_->initial_solution(sol);
+			else
 			{
-				if (problem->is_time_dependent())
-					rhs_assembler_->initial_solution(sol);
-				else
-				{
-					sol.resize(rhs_.size(), 1);
-					sol.setZero();
-				}
+				sol.resize(rhs_.size(), 1);
+				sol.setZero();
 			}
 		}
 		if (sol.cols() > 1)
@@ -663,6 +685,9 @@ namespace polyfem::varform
 			Eigen::MatrixXd::Zero(value.rows(), value.cols()),
 			dt);
 		time_integrator = bdf;
+		restore_checkpoint_integrator(
+			time_integrator, "/checkpoint/state/primary_integrator", dt,
+			"primary", space_, 1);
 
 		save_timestep(t0, 0, t0, dt, sol);
 
@@ -703,7 +728,7 @@ namespace polyfem::varform
 			bdf->update_quantities(value.col(0));
 
 			save_timestep(time, t, t0, dt, sol);
-			save_step_state(t0, dt, t, time_integrator.get());
+			save_step_state(t0, dt, t, sol, time_integrator.get());
 			logger().info("{}/{}  t={}", t, time_steps, time);
 			notify_time_step(t, time_steps, t0, dt);
 		}

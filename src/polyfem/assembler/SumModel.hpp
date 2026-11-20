@@ -15,7 +15,7 @@ namespace polyfem::assembler
 		// compute elastic energy
 		double compute_energy(const NonLinearAssemblerData &data) const override;
 		// necessary for mixing linear model with non-linear collision response
-		Eigen::MatrixXd assemble_hessian(const NonLinearAssemblerData &data) const override;
+		void assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const override;
 		// compute gradient of elastic energy, as assembler
 		Eigen::VectorXd assemble_gradient(const NonLinearAssemblerData &data) const override;
 
@@ -25,7 +25,7 @@ namespace polyfem::assembler
 		VectorNd compute_rhs(const AutodiffHessianPt &pt) const override;
 
 		// initialize material parameter
-		void add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path) override;
+		void add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources) override;
 
 		std::string name() const override { return "MaterialSum"; }
 		bool allow_inversion() const override { return true; }

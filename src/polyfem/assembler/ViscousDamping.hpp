@@ -22,11 +22,11 @@ namespace polyfem
 
 			// energy, gradient, and hessian used in newton method
 			double compute_energy(const NonLinearAssemblerData &data) const override;
-			virtual Eigen::MatrixXd assemble_hessian(const NonLinearAssemblerData &data) const override;
+			virtual void assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const override;
 			virtual Eigen::VectorXd assemble_gradient(const NonLinearAssemblerData &data) const override;
 
 			// sets material params
-			void add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path) override;
+			void add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources) override;
 			void set_params(const double psi, const double phi)
 			{
 				damping_params_[0] = psi;
@@ -72,7 +72,7 @@ namespace polyfem
 			using ViscousDamping::compute_energy;
 
 			// energy, gradient, and hessian used in newton method
-			Eigen::MatrixXd assemble_hessian(const NonLinearAssemblerData &data) const override;
+			void assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const override;
 			Eigen::VectorXd assemble_gradient(const NonLinearAssemblerData &data) const override;
 		};
 	} // namespace assembler

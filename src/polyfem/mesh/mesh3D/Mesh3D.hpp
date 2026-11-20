@@ -5,7 +5,6 @@
 
 #include "Navigation3D.hpp"
 #include "Mesh3DStorage.hpp"
-#include <geogram/mesh/mesh.h>
 #include <iostream>
 #include <Eigen/Dense>
 #include <vector>
@@ -15,6 +14,10 @@ namespace polyfem
 {
 	namespace mesh
 	{
+		/// 3D mesh interface: the elements are the cells (tetrahedra, hexahedra,
+		/// prisms, pyramids or general polyhedra) and the boundary elements are
+		/// the faces. Navigation3D::Index is a (vertex, edge, face, element) flag;
+		/// switch_vertex/edge/face/element move it to the adjacent flag.
 		class Mesh3D : public Mesh
 		{
 		public:
@@ -30,6 +33,7 @@ namespace polyfem
 			virtual int n_cell_edges(const int c_id) const = 0;
 			virtual int n_cell_faces(const int c_id) const = 0;
 			virtual int cell_face(const int c_id, const int lf_id) const = 0;
+			virtual int cell_face_orientation(const int c_id, const int lf_id) const = 0;
 			virtual int cell_edge(const int c_id, const int le_id) const = 0;
 
 			void elements_boxes(std::vector<std::array<Eigen::Vector3d, 2>> &boxes) const override;

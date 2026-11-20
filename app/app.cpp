@@ -7,6 +7,7 @@
 #include <tinyfiledialogs.h>
 
 #include <iostream>
+#include <optional>
 #include <thread>
 #include <exception>
 
@@ -18,9 +19,9 @@
 #include <spdlog/sinks/callback_sink.h>
 
 #include <polyfem/State.hpp>
-#include <polyfem/legacy/State.hpp>
+#include <polyfem/io/Checkpoint.hpp>
+#include <polyfem/io/InputLoader.hpp>
 #include <polyfem/varforms/VarForm.hpp>
-#include <polyfem/varforms/VarFormFactory.hpp>
 #ifdef POLYFEM_WITH_OPTIMIZATION
 #include <polyfem/optimization/OptState.hpp>
 #endif
@@ -29,21 +30,6 @@
 #include <polyfem/utils/JSONUtils.hpp>
 
 using namespace polyfem;
-
-bool load_json(const std::string &json_file, json &out)
-{
-	std::ifstream file(json_file);
-
-	if (!file.is_open())
-		return false;
-
-	file >> out;
-
-	if (!out.contains("root_path"))
-		out["root_path"] = json_file;
-
-	return true;
-}
 
 std::string openFileName(const std::string &defaultPath,
 						 const std::vector<std::string> &filters, const std::string &desc)
@@ -82,36 +68,6 @@ int run_varform_polyfem(std::shared_ptr<State> state)
 
 		state->variational_formulation->save_json(sol);
 		state->variational_formulation->export_data(sol);
-		return EXIT_SUCCESS;
-	}
-	catch (const std::exception &e)
-	{
-		logger().error("Exception: {}", e.what());
-		return EXIT_FAILURE;
-	}
-}
-
-int run_legacy_polyfem(std::shared_ptr<legacy::State> state)
-{
-	try
-	{
-		state->load_mesh();
-		if (!state->mesh)
-			return EXIT_FAILURE;
-
-		state->stats.compute_mesh_stats(*state->mesh);
-		state->build_basis();
-		state->assemble_rhs();
-		state->assemble_mass_mat();
-
-		Eigen::MatrixXd sol;
-		Eigen::MatrixXd pressure;
-		state->solve_problem(sol, pressure);
-		state->compute_errors(sol);
-
-		logger().info("total time: {}s", state->timings.total_time());
-		state->save_json(sol);
-		state->export_data(sol, pressure);
 		return EXIT_SUCCESS;
 	}
 	catch (const std::exception &e)
@@ -332,7 +288,6 @@ int main(int argc, char **argv)
 	set_adjoint_logger(std::make_shared<spdlog::logger>(opt_logger));
 
 	std::shared_ptr<State> state;
-	std::shared_ptr<legacy::State> legacy_state;
 #ifdef POLYFEM_WITH_OPTIMIZATION
 	std::shared_ptr<OptState> opt_state;
 #endif
@@ -342,11 +297,29 @@ int main(int argc, char **argv)
 	bool done = false;
 	bool running = false;
 	bool is_opt = false;
-	bool json_loaded = false;
+	bool input_loaded = false;
 	std::string error_msg;
-	std::string json_file;
+	std::string input_file;
 	std::string output_dir;
 	json in_args = json({});
+	std::unique_ptr<const io::ResourceIO> input_resources;
+	std::optional<io::CheckpointReader> checkpoint;
+	const auto use_loaded_input = [&](io::LoadedInput loaded, const std::string &path) {
+		in_args = std::move(loaded.config);
+		input_resources = std::move(loaded.resources);
+		checkpoint.reset();
+		input_file = path;
+		input_loaded = true;
+		if (!in_args.contains("/output/directory"_json_pointer))
+		{
+			const auto now = std::chrono::system_clock::now();
+			const auto duration = now.time_since_epoch();
+			const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() / 10000;
+			const auto output = input_resources->host_directory() / "output" / fmt::format("{:04}", milliseconds);
+			in_args["/output/directory"_json_pointer] = output.string();
+		}
+		output_dir = in_args["/output/directory"_json_pointer].get<std::string>();
+	};
 
 	int t = 0, time_steps = 0;
 	double tt = 0.0, tend = 0.0;
@@ -402,38 +375,38 @@ int main(int argc, char **argv)
 				if (ImGui::Button("Load JSON"))
 				{
 					clear_logs();
-					json_loaded = false;
-					json_file = openFileName("", {"*.json", "*.*"}, "JSON Files");
-					if (!json_file.empty())
+					input_loaded = false;
+					const std::string path = openFileName("", {"*.json", "*.*"}, "JSON Files");
+					if (!path.empty())
 					{
 						try
 						{
-							const bool ok = load_json(json_file, in_args);
-							if (!ok)
-							{
-								error_msg = fmt::format("Failed to load JSON file: {}", json_file);
-								std::cout << error_msg << std::endl;
-								ImGui::OpenPopup("Error");
-							}
-							else
-							{
-								json_loaded = true;
-								if (!in_args.contains("/output/directory"_json_pointer))
-								{
-									auto now = std::chrono::system_clock::now();
-									auto duration = now.time_since_epoch();
-									auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() / 10000;
-
-									std::filesystem::path path(json_file);
-									const auto tmp = path.parent_path() / "output" / fmt::format("{:04}", milliseconds);
-									in_args["/output/directory"_json_pointer] = tmp.string();
-								}
-								output_dir = in_args["/output/directory"_json_pointer].get<std::string>();
-							}
+							use_loaded_input(io::load_json_input(path), path);
 						}
 						catch (const std::exception &e)
 						{
-							error_msg = fmt::format("Error loading JSON file: {}", e.what());
+							error_msg = fmt::format("Error loading JSON input: {}", e.what());
+							std::cout << error_msg << std::endl;
+							ImGui::OpenPopup("Error");
+						}
+					}
+				}
+
+				ImGui::SameLine();
+				if (ImGui::Button("Load HDF5"))
+				{
+					clear_logs();
+					input_loaded = false;
+					const std::string path = openFileName("", {"*.h5", "*.hdf5", "*.*"}, "HDF5 Files");
+					if (!path.empty())
+					{
+						try
+						{
+							use_loaded_input(io::load_hdf5_input(path), path);
+						}
+						catch (const std::exception &e)
+						{
+							error_msg = fmt::format("Error loading HDF5 input: {}", e.what());
 							std::cout << error_msg << std::endl;
 							ImGui::OpenPopup("Error");
 						}
@@ -447,20 +420,22 @@ int main(int argc, char **argv)
 				ImGui::SetNextItemWidth(100);
 				ImGui::Combo("Opt", &opt_log_level, log_levels, IM_ARRAYSIZE(log_levels));
 				ImGui::SameLine();
-				ImGui::BeginDisabled(!json_loaded);
+				ImGui::BeginDisabled(!input_loaded);
 				if (ImGui::Button("Run"))
 				{
 					running = false;
 					is_opt = false;
 					try
 					{
+						if (!input_resources)
+							throw std::runtime_error("No input resources are loaded.");
 						if (in_args.contains("states"))
 						{
 #ifndef POLYFEM_WITH_OPTIMIZATION
 							throw std::runtime_error("PolyFEM was built without optimization support.");
 #else
 							opt_state = std::make_shared<OptState>();
-							opt_state->init(in_args, false);
+							opt_state->init(in_args, *input_resources, false);
 
 							// opt_state->opt_callback =
 							// 	[&t, &time_steps, &tt, &tend](int tin, int time_stepsin, double ttin, double tendin) {
@@ -497,21 +472,33 @@ int main(int argc, char **argv)
 									tend = tendin;
 								};
 
-							if (varform::uses_varform_state(in_args))
+							const std::string checkpoint_path =
+								in_args.contains("/input/checkpoint/path"_json_pointer)
+									? in_args["/input/checkpoint/path"_json_pointer].get<std::string>()
+									: std::string();
+							if (!checkpoint_path.empty())
 							{
-								legacy_state = nullptr;
+								const std::filesystem::path path = std::filesystem::path(checkpoint_path).is_absolute()
+																	   ? std::filesystem::path(checkpoint_path)
+																	   : input_resources->host_directory() / checkpoint_path;
+								checkpoint.emplace(path.lexically_normal());
+								json continuation = checkpoint->config();
+								continuation["input"]["checkpoint"]["path"] = "";
+								continuation["input"]["checkpoint"]["reorder"] =
+									in_args.contains("/input/checkpoint/reorder"_json_pointer)
+										? in_args["/input/checkpoint/reorder"_json_pointer].get<bool>()
+										: false;
 								state = std::make_shared<State>();
-								state->init(in_args, true);
+								state->init(continuation, *checkpoint, true);
 								state->time_callback = callback;
 								worker = std::make_shared<std::thread>(run_varform_polyfem, state);
 							}
 							else
 							{
-								state = nullptr;
-								legacy_state = std::make_shared<legacy::State>();
-								legacy_state->init(in_args, true);
-								legacy_state->time_callback = callback;
-								worker = std::make_shared<std::thread>(run_legacy_polyfem, legacy_state);
+								state = std::make_shared<State>();
+								state->init(in_args, *input_resources, true);
+								state->time_callback = callback;
+								worker = std::make_shared<std::thread>(run_varform_polyfem, state);
 							}
 							worker->detach();
 						}
@@ -525,7 +512,7 @@ int main(int argc, char **argv)
 				}
 				ImGui::EndDisabled();
 
-				ImGui::Text("JSON File: %s", json_file.c_str());
+				ImGui::Text("Input File: %s", input_file.c_str());
 				ImGui::Text("Output Directory: %s", output_dir.c_str());
 
 				ImGui::EndDisabled();

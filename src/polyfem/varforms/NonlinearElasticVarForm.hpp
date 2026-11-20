@@ -3,6 +3,7 @@
 #include <polyfem/varforms/ElasticVarForm.hpp>
 
 #include <polyfem/assembler/PressureAssembler.hpp>
+#include <polyfem/assembler/MacroStrain.hpp>
 #include <polyfem/assembler/ViscousDamping.hpp>
 #include <polyfem/solver/SolveData.hpp>
 
@@ -15,6 +16,7 @@ namespace polyfem::varform
 	class NonlinearElasticVarForm : public ElasticVarForm
 	{
 	public:
+		using ElasticVarForm::ElasticVarForm;
 		void init(const std::string &formulation, const Units &units, const json &args, const std::string &out_path) override;
 
 		bool is_contact_enabled() const override
@@ -54,12 +56,13 @@ namespace polyfem::varform
 			const std::vector<mesh::LocalBoundary> &total_local_boundary,
 			const mesh::Obstacle &obstacle,
 			const json &args,
-			const std::function<std::string(const std::string &)> &resolve_input_path,
+			const io::ResourceIO &resources,
 			const Eigen::VectorXi &in_node_to_node,
 			ipc::CollisionMesh &collision_mesh);
 
 	protected:
 		void reset() override;
+		void set_obstacle(mesh::Obstacle &&obstacle) override;
 		void load_mesh(const mesh::Mesh &mesh, const json &args) override;
 		void build_basis(mesh::Mesh &mesh, const bool iso_parametric, const json &args) override;
 		void build_rhs_assembler() override;
@@ -73,6 +76,14 @@ namespace polyfem::varform
 			const std::string &state_prefix,
 			const InitialConditionOverride *initial_condition_override = nullptr);
 		virtual void init_forms(const json &args, int dim, Eigen::MatrixXd &sol, double t);
+		bool has_macro_strain() const;
+		Eigen::VectorXd init_homogenization_solve(
+			Eigen::MatrixXd &solution,
+			double time,
+			const InitialConditionOverride *initial_condition_override);
+		void solve_homogenization_step(
+			int step, double time, Eigen::VectorXd &extended_solution,
+			Eigen::MatrixXd &solution, const ForwardStepCallback &post_step);
 		virtual void solve_tensor_nonlinear(int step, Eigen::MatrixXd &sol, bool init_lagging = true);
 
 		std::shared_ptr<assembler::PressureAssembler> build_pressure_assembler() const;
@@ -89,6 +100,11 @@ namespace polyfem::varform
 
 		mesh::Obstacle obstacle;
 
+		/// Prescribed macro displacement-gradient values and fixed components.
+		assembler::MacroStrainValue macro_strain_constraint_;
+		/// For periodic structure, displacement u = periodic fluctuation ũ + macro strain GX.
+		/// displacement_gradient_ := G.
+		Eigen::MatrixXd displacement_gradient_;
 		solver::SolveData solve_data_;
 		std::vector<std::shared_ptr<solver::Form>> forms;
 		bool contact_dhat_was_explicit_ = false;
@@ -99,6 +115,7 @@ namespace polyfem::varform
 	class NonlinearElasticTransientVarForm : public NonlinearElasticVarForm
 	{
 	public:
+		using NonlinearElasticVarForm::NonlinearElasticVarForm;
 		std::string name() const override { return "NonlinearElasticTransient"; }
 
 	private:
@@ -111,6 +128,7 @@ namespace polyfem::varform
 	class NonlinearElasticStaticVarForm : public NonlinearElasticVarForm
 	{
 	public:
+		using NonlinearElasticVarForm::NonlinearElasticVarForm;
 		std::string name() const override { return "NonlinearElasticStatic"; }
 
 	private:

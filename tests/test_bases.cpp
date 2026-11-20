@@ -46,7 +46,7 @@ namespace
 			0, 1;
 		Eigen::MatrixXi cells(1, 3);
 		cells << 0, 1, 2;
-		return Mesh::create(vertices, cells);
+		return Mesh::create(MeshData(vertices, cells));
 	}
 
 	std::unique_ptr<Mesh> make_lagrange_quad_mesh()
@@ -58,7 +58,7 @@ namespace
 			0, 1;
 		Eigen::MatrixXi cells(1, 4);
 		cells << 0, 1, 2, 3;
-		return Mesh::create(vertices, cells);
+		return Mesh::create(MeshData(vertices, cells));
 	}
 
 	std::unique_ptr<Mesh> make_lagrange_two_triangle_mesh()
@@ -71,7 +71,7 @@ namespace
 		Eigen::MatrixXi cells(2, 3);
 		cells << 0, 1, 2,
 			0, 2, 3;
-		return Mesh::create(vertices, cells);
+		return Mesh::create(MeshData(vertices, cells));
 	}
 
 	std::unique_ptr<Mesh> make_lagrange_two_quad_mesh()
@@ -86,7 +86,7 @@ namespace
 		Eigen::MatrixXi cells(2, 4);
 		cells << 0, 1, 4, 3,
 			1, 2, 5, 4;
-		return Mesh::create(vertices, cells);
+		return Mesh::create(MeshData(vertices, cells));
 	}
 
 	void require_partition_of_unity(const ElementBases &bases, const Eigen::MatrixXd &uv)
@@ -1947,5 +1947,34 @@ TEST_CASE("Pyramid", "[bases]")
 				CHECK(fd::compare_gradient(grad.row(j), fgrad));
 			}
 		}
+	}
+}
+
+TEST_CASE("P0 tets next to P1 tets get a node at their barycenter", "[bases]")
+{
+	// With no interior nodes in the space, cells used to have no node slot,
+	// so the P0 node was looked up past the end of the slot array.
+	Eigen::MatrixXd vertices(5, 3);
+	vertices << 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1;
+	Eigen::MatrixXi cells(2, 4);
+	cells << 0, 1, 2, 3, 1, 2, 3, 4;
+	const auto mesh = Mesh::create(MeshData(vertices, cells));
+	const auto &mesh3d = dynamic_cast<const Mesh3D &>(*mesh);
+	for (const int p0_cell : {0, 1})
+	{
+		CAPTURE(p0_cell);
+		Eigen::VectorXi orders = Eigen::VectorXi::Ones(2);
+		orders(p0_cell) = 0;
+		std::vector<ElementBases> bases;
+		std::vector<LocalBoundary> local_boundary;
+		std::map<int, InterfaceData> poly_face_to_data;
+		std::shared_ptr<MeshNodes> mesh_nodes;
+		const int n_bases = LagrangeBasis3d::build_bases(mesh3d, "Laplacian", 2, 2, orders, orders, false, false, false, false, false, bases, local_boundary, poly_face_to_data, mesh_nodes);
+		CHECK(n_bases == 5);
+		REQUIRE(bases[p0_cell].bases.size() == 1);
+		const auto &global = bases[p0_cell].bases[0].global();
+		REQUIRE(global.size() == 1);
+		CHECK((global[0].node - mesh->cell_barycenter(p0_cell)).norm() < 1e-14);
+		CHECK(bases[1 - p0_cell].bases.size() == 4);
 	}
 }

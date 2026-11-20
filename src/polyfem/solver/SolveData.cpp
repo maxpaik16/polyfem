@@ -8,7 +8,8 @@
 #include <polyfem/solver/forms/lagrangian/MacroStrainLagrangianForm.hpp>
 #include <polyfem/solver/forms/BodyForm.hpp>
 #include <polyfem/solver/forms/BarrierContactForm.hpp>
-#include <polyfem/solver/forms/SmoothContactForm.hpp>
+#include <polyfem/solver/forms/GCPContactForm.hpp>
+#include <polyfem/solver/forms/ESPContactForm.hpp>
 #include <polyfem/solver/forms/PressureForm.hpp>
 #include <polyfem/solver/forms/PeriodicContactForm.hpp>
 #include <polyfem/solver/forms/ElasticForm.hpp>
@@ -26,15 +27,67 @@
 #include <polyfem/assembler/MacroStrain.hpp>
 #include <polyfem/utils/Logger.hpp>
 
-#include <h5pp/h5pp.h>
+namespace
+{
+	ipc::NormalCollisions::CollisionSetType collision_set_type_from_string(const std::string &s)
+	{
+		if (s == "OGC")
+			return ipc::NormalCollisions::CollisionSetType::OGC;
+		if (s == "IMPROVED_MAX_APPROX")
+			return ipc::NormalCollisions::CollisionSetType::IMPROVED_MAX_APPROX;
+		return ipc::NormalCollisions::CollisionSetType::IPC;
+	}
+
+	std::shared_ptr<ipc::Barrier> barrier_from_string(const std::string &name)
+	{
+		if (name == "default")
+			return nullptr;
+		if (name == "log")
+			return std::make_shared<ipc::ClampedLogBarrier<>>();
+		if (name == "normalized_log")
+			return std::make_shared<ipc::NormalizedClampedLogBarrier<>>();
+		if (name == "linear_inverse")
+			return std::make_shared<ipc::InversePowerBarrier<>>(1.0);
+		if (name == "quadratic_inverse")
+			return std::make_shared<ipc::InversePowerBarrier<>>(2.0);
+		if (name == "two_stage")
+			return std::make_shared<ipc::TwoStageBarrier<>>();
+		polyfem::log_and_throw_error("Unknown barrier type: '{}'. Valid options: 'default', 'log', 'normalized_log', 'linear_inverse', 'quadratic_inverse', 'two_stage'.", name);
+	}
+} // namespace
 
 namespace polyfem::solver
 {
 	using namespace polyfem::time_integrator;
 
+	namespace
+	{
+		std::string constraint_child(const std::string &group, const std::string &name)
+		{
+			return group.empty() || group == "/" ? "/" + name : group + "/" + name;
+		}
+
+		template <typename Callback>
+		void with_constraint_resource(
+			const io::ResourceIO &resources,
+			const std::string &path,
+			Callback &&callback)
+		{
+			if (resources.is_group(path))
+			{
+				callback(resources, path);
+				return;
+			}
+
+			const io::HDF5IO constraint(resources.materialize(path));
+			callback(constraint, "/");
+		}
+	} // namespace
+
 	std::vector<std::shared_ptr<Form>> SolveData::init_forms(
 		// General
 		const Units &units,
+		const io::ResourceIO &resources,
 		const int dim,
 		const double t,
 		const Eigen::VectorXi &in_node_to_node,
@@ -88,8 +141,12 @@ namespace polyfem::solver
 		const bool use_area_weighting,
 		const bool use_improved_max_operator,
 		const bool use_physical_barrier,
+		const std::string &collision_set_type,
+		const bool skip_obstacles,
+		const std::string &barrier,
 		const json &barrier_stiffness,
 		const double initial_barrier_stiffness,
+		const double dhat_epsilon_scale,
 		const ipc::BroadPhaseMethod broad_phase,
 		const double ccd_tolerance,
 		const long ccd_max_iterations,
@@ -101,6 +158,10 @@ namespace polyfem::solver
 		const double alpha_n,
 		const bool use_adaptive_dhat,
 		const double min_distance_ratio,
+
+		// ESP contact form
+		const bool use_esp_formulation,
+		json esp_params,
 
 		// Normal Adhesion Form
 		const bool adhesion_enabled,
@@ -297,74 +358,63 @@ namespace polyfem::solver
 		for (const auto &path : hard_constraint_files)
 		{
 			logger().debug("Setting up hard constraints for {}", path);
-			h5pp::File file(path, h5pp::FileAccess::READONLY);
-			std::vector<int> local2global;
-			if (!file.findDatasets("local2global").empty())
-				local2global = file.readDataset<std::vector<int>>("local2global");
+			with_constraint_resource(resources, path, [&](const io::ResourceIO &file, const std::string &group) {
+				const auto child = [&](const std::string &name) { return constraint_child(group, name); };
+				std::vector<int> local2global;
+				if (file.exists(child("local2global")))
+					local2global = file.read_int_vector(child("local2global"));
 
-			if (local2global.empty())
-			{
-				local2global.resize(in_node_to_node.size());
-
-				for (int i = 0; i < local2global.size(); ++i)
-					local2global[i] = in_node_to_node[i];
-			}
-			else
-			{
-				for (auto &v : local2global)
-					v = in_node_to_node[v];
-			}
-
-			Eigen::MatrixXd bin = file.readDataset<Eigen::MatrixXd>("b");
-
-			StiffnessMatrix A, A_proj;
-			Eigen::MatrixXd b, b_proj;
-
-			if (!file.findDatasets("A").empty())
-			{
-				Eigen::MatrixXd Ain = file.readDataset<Eigen::MatrixXd>("A");
-				utils::scatter_matrix(ndof, dim, Ain, bin, local2global, A, b);
-
-				if (!file.findDatasets("A_proj").empty())
+				if (local2global.empty())
 				{
-					Eigen::MatrixXd A_proj_in = file.readDataset<Eigen::MatrixXd>("A_proj");
-					if (file.findDatasets("b_proj").empty())
-						log_and_throw_error("Missing b_proj in hard constraint file");
-
-					Eigen::MatrixXd b_proj_in = file.readDataset<Eigen::MatrixXd>("b_proj");
-					utils::scatter_matrix_col(ndof, dim, A_proj_in, b_proj_in, local2global, A_proj, b_proj);
+					local2global.resize(in_node_to_node.size());
+					for (int i = 0; i < local2global.size(); ++i)
+						local2global[i] = in_node_to_node[i];
 				}
-			}
-			else
-			{
-				std::vector<double> values = file.readDataset<std::vector<double>>("A_triplets/values");
-				std::vector<int> rows = file.readDataset<std::vector<int>>("A_triplets/rows");
-				std::vector<int> cols = file.readDataset<std::vector<int>>("A_triplets/cols");
-				std::vector<long> shape = file.readDataset<std::vector<long>>("A_triplets/shape");
-				utils::scatter_matrix(ndof, dim, shape, rows, cols, values, bin, local2global, A, b);
-
-				if (!file.findGroups("A_proj_triplets").empty())
+				else
 				{
-					if (file.findDatasets("b_proj").empty())
-						log_and_throw_error("Missing b_proj in hard constraint file");
-					if (file.findDatasets("rows", "/A_proj_triplets").empty())
-						log_and_throw_error("Missing A_proj_triplets/rows in hard constraint file");
-					if (file.findDatasets("cols", "/A_proj_triplets").empty())
-						log_and_throw_error("Missing A_proj_triplets/cols in hard constraint file");
-					if (file.findDatasets("values", "/A_proj_triplets").empty())
-						log_and_throw_error("Missing A_proj_triplets/values in hard constraint file");
-
-					std::vector<double> values_proj = file.readDataset<std::vector<double>>("A_proj_triplets/values");
-					std::vector<int> rows_proj = file.readDataset<std::vector<int>>("A_proj_triplets/rows");
-					std::vector<int> cols_proj = file.readDataset<std::vector<int>>("A_proj_triplets/cols");
-					Eigen::MatrixXd b_projin = file.readDataset<Eigen::MatrixXd>("b_proj");
-					std::vector<long> shape_proj = file.readDataset<std::vector<long>>("A_proj_triplets/shape");
-
-					utils::scatter_matrix_col(ndof, dim, shape_proj, rows_proj, cols_proj, values_proj, b_projin, local2global, A_proj, b_proj);
+					for (auto &v : local2global)
+						v = in_node_to_node[v];
 				}
-			}
 
-			al_form.push_back(std::make_shared<MatrixLagrangianForm>(A, b, A_proj, b_proj));
+				const Eigen::MatrixXd bin = file.read_matrix(child("b"));
+				StiffnessMatrix A, A_proj;
+				Eigen::MatrixXd b, b_proj;
+
+				if (file.exists(child("A")))
+				{
+					const Eigen::MatrixXd Ain = file.read_matrix(child("A"));
+					utils::scatter_matrix(ndof, dim, Ain, bin, local2global, A, b);
+					if (file.exists(child("A_proj")))
+					{
+						if (!file.exists(child("b_proj")))
+							log_and_throw_error("Missing b_proj in hard constraint resource");
+						utils::scatter_matrix_col(
+							ndof, dim, file.read_matrix(child("A_proj")), file.read_matrix(child("b_proj")),
+							local2global, A_proj, b_proj);
+					}
+				}
+				else
+				{
+					utils::scatter_matrix(
+						ndof, dim, file.read_long_vector(child("A_triplets/shape")),
+						file.read_int_vector(child("A_triplets/rows")), file.read_int_vector(child("A_triplets/cols")),
+						file.read_double_vector(child("A_triplets/values")), bin, local2global, A, b);
+
+					if (file.is_group(child("A_proj_triplets")))
+					{
+						for (const std::string &required : {"b_proj", "A_proj_triplets/rows", "A_proj_triplets/cols", "A_proj_triplets/values", "A_proj_triplets/shape"})
+							if (!file.exists(child(required)))
+								log_and_throw_error("Missing {} in hard constraint resource", required);
+						utils::scatter_matrix_col(
+							ndof, dim, file.read_long_vector(child("A_proj_triplets/shape")),
+							file.read_int_vector(child("A_proj_triplets/rows")), file.read_int_vector(child("A_proj_triplets/cols")),
+							file.read_double_vector(child("A_proj_triplets/values")), file.read_matrix(child("b_proj")),
+							local2global, A_proj, b_proj);
+					}
+				}
+
+				al_form.push_back(std::make_shared<MatrixLagrangianForm>(A, b, A_proj, b_proj));
+			});
 			// forms.push_back(al_form.back());
 		}
 
@@ -374,45 +424,36 @@ namespace polyfem::solver
 			double weight = j["weight"];
 
 			logger().debug("Setting up soft constraints for {}", path);
-			h5pp::File file(path, h5pp::FileAccess::READONLY);
-			std::vector<int> local2global;
-			if (!file.findDatasets("local2global").empty())
-				local2global = file.readDataset<std::vector<int>>("local2global");
+			with_constraint_resource(resources, path, [&](const io::ResourceIO &file, const std::string &group) {
+				const auto child = [&](const std::string &name) { return constraint_child(group, name); };
+				std::vector<int> local2global;
+				if (file.exists(child("local2global")))
+					local2global = file.read_int_vector(child("local2global"));
+				if (local2global.empty())
+				{
+					local2global.resize(in_node_to_node.size());
+					for (int i = 0; i < local2global.size(); ++i)
+						local2global[i] = in_node_to_node[i];
+				}
+				else
+				{
+					for (auto &v : local2global)
+						v = in_node_to_node[v];
+				}
 
-			if (local2global.empty())
-			{
-				local2global.resize(in_node_to_node.size());
+				const Eigen::MatrixXd bin = file.read_matrix(child("b"));
+				StiffnessMatrix A;
+				Eigen::MatrixXd b;
+				if (file.exists(child("A")))
+					utils::scatter_matrix(ndof, dim, file.read_matrix(child("A")), bin, local2global, A, b);
+				else
+					utils::scatter_matrix(
+						ndof, dim, file.read_long_vector(child("A_triplets/shape")),
+						file.read_int_vector(child("A_triplets/rows")), file.read_int_vector(child("A_triplets/cols")),
+						file.read_double_vector(child("A_triplets/values")), bin, local2global, A, b);
 
-				for (int i = 0; i < local2global.size(); ++i)
-					local2global[i] = in_node_to_node[i];
-			}
-			else
-			{
-				for (auto &v : local2global)
-					v = in_node_to_node[v];
-			}
-
-			Eigen::MatrixXd bin = file.readDataset<Eigen::MatrixXd>("b");
-
-			StiffnessMatrix A;
-			Eigen::MatrixXd b;
-
-			if (!file.findDatasets("A").empty())
-			{
-				Eigen::MatrixXd Ain = file.readDataset<Eigen::MatrixXd>("A");
-				utils::scatter_matrix(ndof, dim, Ain, bin, local2global, A, b);
-			}
-			else
-			{
-				std::vector<double> values = file.readDataset<std::vector<double>>("A_triplets/values");
-				std::vector<int> rows = file.readDataset<std::vector<int>>("A_triplets/rows");
-				std::vector<int> cols = file.readDataset<std::vector<int>>("A_triplets/cols");
-				std::vector<long> shape = file.readDataset<std::vector<long>>("A_triplets/shape");
-
-				utils::scatter_matrix(ndof, dim, shape, rows, cols, values, bin, local2global, A, b);
-			}
-
-			forms.push_back(std::make_shared<QuadraticPenaltyForm>(A, b, weight));
+				forms.push_back(std::make_shared<QuadraticPenaltyForm>(A, b, weight));
+			});
 		}
 
 		if (macro_strain_constraint.is_active())
@@ -433,7 +474,7 @@ namespace polyfem::solver
 				periodic_contact_form = std::make_shared<PeriodicContactForm>(
 					collision_mesh, tiled_to_single, dhat, avg_mass, use_area_weighting, use_improved_max_operator, use_physical_barrier,
 					use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase, ccd_tolerance,
-					ccd_max_iterations);
+					ccd_max_iterations, dhat_epsilon_scale);
 
 				if (use_adaptive_barrier_stiffness)
 				{
@@ -454,17 +495,23 @@ namespace polyfem::solver
 			{
 				if (use_gcp_formulation)
 				{
-					contact_form = std::make_shared<SmoothContactForm>(
+					contact_form = std::make_shared<GCPContactForm>(
 						collision_mesh, dhat, avg_mass, alpha_t, alpha_n, use_adaptive_dhat, min_distance_ratio,
 						use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase,
-						ccd_tolerance * units.characteristic_length(), ccd_max_iterations);
+						ccd_tolerance * units.characteristic_length(), ccd_max_iterations, dhat_epsilon_scale);
+				}
+				else if (use_esp_formulation)
+				{
+					contact_form = std::make_shared<ESPContactForm>(
+						collision_mesh, dhat, avg_mass, esp_params, skip_obstacles, barrier_from_string(barrier), use_adaptive_dhat, use_adaptive_barrier_stiffness, is_time_dependent,
+						enable_shape_derivatives, broad_phase, ccd_tolerance * units.characteristic_length(), ccd_max_iterations, dhat_epsilon_scale);
 				}
 				else
 				{
 					contact_form = std::make_shared<BarrierContactForm>(
 						collision_mesh, dhat, avg_mass, use_area_weighting, use_improved_max_operator, use_physical_barrier,
 						use_adaptive_barrier_stiffness, is_time_dependent, enable_shape_derivatives, broad_phase, ccd_tolerance * units.characteristic_length(),
-						ccd_max_iterations);
+						ccd_max_iterations, dhat_epsilon_scale, collision_set_type_from_string(collision_set_type), skip_obstacles, barrier_from_string(barrier));
 				}
 
 				if (use_adaptive_barrier_stiffness)

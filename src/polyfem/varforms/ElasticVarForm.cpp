@@ -38,6 +38,26 @@
 
 namespace polyfem::varform
 {
+	void ElasticVarForm::serialize_checkpoint(
+		io::CheckpointWriter &writer,
+		const Eigen::MatrixXd &solution,
+		const io::CheckpointMetadata &metadata) const
+	{
+		VarForm::serialize_checkpoint(writer, solution, metadata);
+		write_checkpoint_ordering(writer, "primary", space_);
+	}
+
+	void ElasticVarForm::deserialize_checkpoint(
+		const io::CheckpointReader &reader,
+		Eigen::MatrixXd &solution)
+	{
+		VarForm::deserialize_checkpoint(reader, solution);
+		validate_checkpoint_solution(solution, space_.ndof());
+		reorder_checkpoint_block(
+			reader, "primary", space_,
+			mesh_->dimension(), 0, solution);
+	}
+
 	void ElasticVarForm::reset()
 	{
 		VarForm::reset();
@@ -81,15 +101,14 @@ namespace polyfem::varform
 			problem->clear();
 			json tmp;
 			tmp["is_time_dependent"] = is_time_dependent;
-			problem->set_parameters(tmp, root_path);
+			problem->set_parameters(tmp, resources_);
 
 			// important for the BC
 
 			auto bc = args["boundary_conditions"];
-			bc["root_path"] = root_path;
-			problem->set_parameters(bc, root_path);
-			problem->set_parameters(args["initial_conditions"], root_path);
-			problem->set_parameters(args["output"], root_path);
+			problem->set_parameters(bc, resources_);
+			problem->set_parameters(args["initial_conditions"], resources_);
+			problem->set_parameters(args["output"], resources_);
 		}
 		else
 		{
@@ -105,7 +124,7 @@ namespace polyfem::varform
 				problem->clear();
 			}
 			// important for the BC
-			problem->set_parameters(args["preset_problem"], root_path);
+			problem->set_parameters(args["preset_problem"], resources_);
 		}
 
 		problem->set_units(*primary_assembler_, units);
@@ -191,21 +210,27 @@ namespace polyfem::varform
 		mesh.update_nodes(space_.space_in_node_to_node);
 
 		boundary_.clear_boundary_conditions();
-		for (const auto &lb : boundary_.total_local_boundary)
-			boundary_.local_boundary.emplace_back(lb);
-
-		std::vector<basis::ElementBases> empty_pressure_bases;
-		std::vector<int> empty_pressure_boundary_nodes;
 		problem->setup_bc(
-			mesh, space_.n_bases,
-			space_.basis_list(), space_.geometry_basis_list(), empty_pressure_bases,
-			boundary_.local_boundary,
-			boundary_.boundary_nodes,
-			boundary_.local_neumann_boundary,
-			boundary_.local_pressure_boundary,
-			boundary_.local_pressure_cavity,
-			empty_pressure_boundary_nodes,
-			boundary_.dirichlet_nodes, boundary_.neumann_nodes);
+			mesh, assembler::BoundaryKind::Dirichlet, fe_space_id,
+			space_.basis_list(), boundary_.total_local_boundary,
+			boundary_.local_boundary, boundary_.boundary_nodes, mesh.dimension());
+		problem->setup_bc(
+			mesh, assembler::BoundaryKind::Neumann, fe_space_id,
+			boundary_.total_local_boundary, boundary_.local_neumann_boundary);
+
+		problem->setup_nodal_bc(
+			mesh, assembler::BoundaryKind::Dirichlet, fe_space_id, space_.n_bases, boundary_.dirichlet_nodes);
+		problem->setup_nodal_bc(
+			mesh, assembler::BoundaryKind::Neumann, fe_space_id, space_.n_bases, boundary_.neumann_nodes);
+
+		for (const int n_id : boundary_.dirichlet_nodes)
+		{
+			const int tag = mesh.get_node_id(n_id);
+			for (int d = 0; d < mesh.dimension(); ++d)
+				if (problem->is_nodal_dimension_dirichlet(n_id, tag, d, fe_space_id))
+					boundary_.boundary_nodes.push_back(n_id * mesh.dimension() + d);
+		}
+		boundary_.normalize_boundary_nodes();
 
 		rebuild_node_positions(space_.basis_list(), boundary_.dirichlet_nodes, boundary_.dirichlet_nodes_position);
 		rebuild_node_positions(space_.basis_list(), boundary_.neumann_nodes, boundary_.neumann_nodes_position);
@@ -249,7 +274,7 @@ namespace polyfem::varform
 			*primary_assembler_, *mesh_, nullptr,
 			boundary_.dirichlet_nodes, boundary_.neumann_nodes,
 			boundary_.dirichlet_nodes_position, boundary_.neumann_nodes_position,
-			space_.n_bases, mesh_->dimension(), space_.basis_list(), space_.geometry_basis_list(), mass_ass_vals_cache_, *problem,
+			space_.n_bases, mesh_->dimension(), space_.basis_list(), space_.geometry_basis_list(), mass_ass_vals_cache_, *problem, resources_,
 			args["space"]["advanced"]["bc_method"],
 			rhs_solver_params,
 			/*fe_space_id=*/-1);
@@ -260,7 +285,6 @@ namespace polyfem::varform
 		igl::Timer timer;
 		json p_params = {};
 		p_params["formulation"] = primary_assembler_->name();
-		p_params["root_path"] = root_path;
 		{
 			RowVectorNd min, max, delta;
 			mesh.bounding_box(min, max);
@@ -270,7 +294,7 @@ namespace polyfem::varform
 			else
 				p_params["bbox_center"] = {delta(0), delta(1)};
 		}
-		problem->set_parameters(p_params, root_path);
+		problem->set_parameters(p_params, resources_);
 
 		rhs_.resize(0, 0);
 
@@ -348,13 +372,7 @@ namespace polyfem::varform
 			return;
 		}
 
-		const bool was_velocity_loaded = read_initial_x_from_file(
-			resolve_input_path(args["input"]["data"]["state"]), state_prefix + "v",
-			args["input"]["data"]["reorder"], space_.space_in_node_to_node,
-			mesh_->dimension(), velocity);
-
-		if (!was_velocity_loaded)
-			rhs_assembler_->initial_velocity(velocity);
+		rhs_assembler_->initial_velocity(velocity);
 	}
 
 	void ElasticVarForm::initial_acceleration(
@@ -372,13 +390,7 @@ namespace polyfem::varform
 			return;
 		}
 
-		const bool was_acceleration_loaded = read_initial_x_from_file(
-			resolve_input_path(args["input"]["data"]["state"]), state_prefix + "a",
-			args["input"]["data"]["reorder"], space_.space_in_node_to_node,
-			mesh_->dimension(), acceleration);
-
-		if (!was_acceleration_loaded)
-			rhs_assembler_->initial_acceleration(acceleration);
+		rhs_assembler_->initial_acceleration(acceleration);
 	}
 
 	void ElasticVarForm::initial_solution(
@@ -396,20 +408,12 @@ namespace polyfem::varform
 			return;
 		}
 
-		const bool was_solution_loaded = read_initial_x_from_file(
-			resolve_input_path(args["input"]["data"]["state"]), state_prefix + "u",
-			args["input"]["data"]["reorder"], space_.space_in_node_to_node,
-			mesh_->dimension(), solution);
-
-		if (!was_solution_loaded)
+		if (problem->is_time_dependent())
+			rhs_assembler_->initial_solution(solution);
+		else
 		{
-			if (problem->is_time_dependent())
-				rhs_assembler_->initial_solution(solution);
-			else
-			{
-				solution.resize(rhs_.size(), 1);
-				solution.setZero();
-			}
+			solution.resize(rhs_.size(), 1);
+			solution.setZero();
 		}
 	}
 
@@ -501,8 +505,15 @@ namespace polyfem::varform
 
 			sampled_values.conservativeResize(sampled_values.rows() + obstacle->n_vertices(), sampled_values.cols());
 			if (dof_values.rows() >= obstacle->ndof())
-				sampled_values.bottomRows(obstacle->n_vertices()) =
+			{
+				const Eigen::MatrixXd obstacle_values =
 					utils::unflatten(dof_values.bottomRows(obstacle->ndof()), sampled_values.cols());
+				if (obstacle_values.rows() == obstacle->n_vertices()
+					&& obstacle_values.cols() == sampled_values.cols())
+					sampled_values.bottomRows(obstacle->n_vertices()) = obstacle_values;
+				else
+					sampled_values.bottomRows(obstacle->n_vertices()).setZero();
+			}
 			else
 				sampled_values.bottomRows(obstacle->n_vertices()).setZero();
 			return true;
@@ -614,7 +625,9 @@ namespace polyfem::varform
 									  || options.export_field("cauchy_stess")
 									  || options.export_field("pk1_stess")
 									  || options.export_field("pk2_stess")
-									  || options.export_field("F");
+									  || options.export_field("F")
+									  || options.export_field("energy")
+									  || options.export_field("energy_avg");
 			if (!wants_tensor)
 				return;
 
@@ -646,6 +659,38 @@ namespace polyfem::varform
 
 			for (const auto &[name, values] : point_values)
 			{
+				if (name == "energy")
+				{
+					// Scalar field: must not go through the per-dimension splitting below.
+					if (options.export_field("energy"))
+						fields.push_back({name, values, io::OutputField::Association::Point});
+
+					if (options.export_field("energy_avg"))
+					{
+						// Per-element mean of the energy at the sample points.
+						Eigen::VectorXd sum = Eigen::VectorXd::Zero(mesh_->n_elements());
+						Eigen::VectorXi cnt = Eigen::VectorXi::Zero(mesh_->n_elements());
+						for (int i = 0; i < sample.element_ids.size(); ++i)
+						{
+							const int e = sample.element_ids(i);
+							if (e < 0)
+								continue;
+							sum(e) += values(i, 0);
+							cnt(e)++;
+						}
+
+						Eigen::MatrixXd avg = Eigen::MatrixXd::Zero(values.rows(), 1);
+						for (int i = 0; i < sample.element_ids.size(); ++i)
+						{
+							const int e = sample.element_ids(i);
+							if (e >= 0)
+								avg(i) = sum(e) / cnt(e);
+						}
+						fields.push_back({"energy_avg", avg, io::OutputField::Association::Point});
+					}
+					continue;
+				}
+
 				if (!options.export_field(name))
 					continue;
 
@@ -724,8 +769,9 @@ namespace polyfem::varform
 				if (avg_tensor.empty() && !tmp_t.empty())
 				{
 					avg_tensor.resize(tmp_t.size());
-					for (auto &m : avg_tensor)
-						m.setZero(space_.n_bases, actual_dim * actual_dim);
+					// Not every tensor is dim x dim (e.g. the scalar "energy"), so size by its own columns.
+					for (int k = 0; k < tmp_t.size(); ++k)
+						avg_tensor[k].setZero(space_.n_bases, tmp_t[k].second.cols());
 				}
 
 				for (size_t j = 0; j < bs.bases.size(); ++j)
@@ -765,6 +811,10 @@ namespace polyfem::varform
 
 			for (int k = 0; k < tmp_t.size(); ++k)
 			{
+				// "energy_avg" is the per-element mean written by append_tensor_values.
+				if (tmp_t[k].first == "energy")
+					continue;
+
 				const std::string base_name = fmt::format("{:s}_avg", tmp_t[k].first);
 				if (!options.export_field(base_name))
 					continue;
@@ -1296,26 +1346,12 @@ namespace polyfem::varform
 		const double t0,
 		const double dt,
 		const int t,
+		const Eigen::MatrixXd &solution,
 		const time_integrator::ImplicitTimeIntegrator *time_integrator) const
 	{
 		if (!mesh_)
 			return;
-
-		const int global_t = output_file_index(t);
-		const std::string rest_mesh_path = args["output"]["data"]["rest_mesh"].get<std::string>();
-		bool rest_mesh_written = false;
-		if (!rest_mesh_path.empty())
-		{
-			Eigen::MatrixXd V;
-			Eigen::MatrixXi F;
-			build_mesh_matrices(V, F);
-			io::MshWriter::write(
-				resolve_output_path(fmt::format(rest_mesh_path, global_t)),
-				V, F, mesh_->get_body_ids(), mesh_->is_volume(), /*binary=*/true);
-			rest_mesh_written = true;
-		}
-
-		save_step_state(t0, dt, t, time_integrator, rest_mesh_written);
+		save_step_state(t0, dt, t, solution, time_integrator);
 	}
 
 	void ElasticVarForm::build_mesh_matrices(Eigen::MatrixXd &V, Eigen::MatrixXi &F) const

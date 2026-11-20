@@ -37,6 +37,7 @@ namespace polyfem
 								   const int n_basis, const int size,
 								   const std::vector<basis::ElementBases> &bases, const std::vector<basis::ElementBases> &gbases, const AssemblyValsCache &ass_vals_cache,
 								   const Problem &problem,
+								   const io::ResourceIO &resources,
 								   const std::string bc_method,
 								   const json &solver_params,
 								   const int fe_space_id)
@@ -49,6 +50,7 @@ namespace polyfem
 			  gbases_(gbases),
 			  ass_vals_cache_(ass_vals_cache),
 			  problem_(problem),
+			  resources_(resources),
 			  bc_method_(bc_method),
 			  solver_params_(solver_params),
 			  fe_space_id_(fe_space_id),
@@ -69,14 +71,10 @@ namespace polyfem
 				Eigen::MatrixXd rhs_fun;
 
 				const int n_elements = int(bases_.size());
-				ElementAssemblyValues vals;
+				ElementAssemblyValues scratch;
 				for (int e = 0; e < n_elements; ++e)
 				{
-					// vals.compute(e, mesh_.is_volume(), bases_[e], gbases_[e]);
-
-					// compute geometric mapping
-					// evaluate and store basis functions/their gradients at quadrature points
-					ass_vals_cache_.compute(e, mesh_.is_volume(), bases_[e], gbases_[e], vals);
+					const ElementAssemblyValues &vals = ass_vals_cache_.get_or_compute(e, mesh_.is_volume(), bases_[e], gbases_[e], scratch);
 
 					const Quadrature &quadrature = vals.quadrature;
 
@@ -143,7 +141,7 @@ namespace polyfem
 			Eigen::MatrixXd loc_sol;
 
 			const int n_elements = int(bases_.size());
-			ElementAssemblyValues vals;
+			ElementAssemblyValues scratch;
 			Eigen::MatrixXi ids;
 
 			if (bc_method_ == "sample")
@@ -151,8 +149,6 @@ namespace polyfem
 				for (int e = 0; e < n_elements; ++e)
 				{
 					const basis::ElementBases &bs = bases_[e];
-					// vals.compute(e, mesh_.is_volume(), bases_[e], gbases_[e]);
-					ass_vals_cache_.compute(e, mesh_.is_volume(), bases_[e], gbases_[e], vals);
 					ids.resize(1, 1);
 					ids.setConstant(e);
 
@@ -178,8 +174,7 @@ namespace polyfem
 
 				for (int e = 0; e < n_elements; ++e)
 				{
-					// vals.compute(e, mesh_.is_volume(), bases_[e], gbases_[e]);
-					ass_vals_cache_.compute(e, mesh_.is_volume(), bases_[e], gbases_[e], vals);
+					const ElementAssemblyValues &vals = ass_vals_cache_.get_or_compute(e, mesh_.is_volume(), bases_[e], gbases_[e], scratch);
 					ids.resize(vals.val.rows(), 1);
 					ids.setConstant(e);
 
@@ -214,7 +209,7 @@ namespace polyfem
 				{
 					assembler::Mass mass_mat_assembler;
 					mass_mat_assembler.set_size(assembler_.size());
-					mass_mat_assembler.add_multimaterial(0, json({}), Units(), "");
+					mass_mat_assembler.add_multimaterial(0, json({}), Units(), resources_);
 					StiffnessMatrix mass;
 					const int n_fe_basis = n_basis_ - (obstacle_ ? obstacle_->n_vertices() : 0);
 					mass_mat_assembler.assemble(size_ == 3, n_fe_basis, bases_, gbases_, ass_vals_cache_, 0, mass, true);
@@ -712,9 +707,7 @@ namespace polyfem
 
 					for (int e = start; e < end; ++e)
 					{
-						ElementAssemblyValues &vals = local_storage.vals;
-						// vals.compute(e, mesh_.is_volume(), bases_[e], gbases_[e]);
-						ass_vals_cache_.compute(e, mesh_.is_volume(), bases_[e], gbases_[e], vals);
+						const ElementAssemblyValues &vals = ass_vals_cache_.get_or_compute(e, mesh_.is_volume(), bases_[e], gbases_[e], local_storage.vals);
 
 						const Quadrature &quadrature = vals.quadrature;
 						const Eigen::VectorXd da = vals.det.array() * quadrature.weights.array();

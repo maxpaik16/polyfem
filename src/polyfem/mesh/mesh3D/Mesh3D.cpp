@@ -6,7 +6,6 @@
 
 #include <igl/barycentric_coordinates.h>
 
-#include <geogram/mesh/mesh_io.h>
 #include <fstream>
 
 namespace polyfem
@@ -628,7 +627,7 @@ namespace polyfem
 			{
 				auto &box = boxes[i];
 				box[0].setConstant(std::numeric_limits<double>::max());
-				box[1].setConstant(std::numeric_limits<double>::min());
+				box[1].setConstant(std::numeric_limits<double>::lowest());
 
 				for (int j = 0; j < n_cell_vertices(i); ++j)
 				{

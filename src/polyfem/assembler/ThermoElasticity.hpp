@@ -21,7 +21,7 @@ namespace polyfem::assembler
 		std::map<std::string, ParamFunc> parameters() const override;
 
 		void set_size(const int size) override;
-		void add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path) override;
+		void add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources) override;
 
 	protected:
 		int rows() const override { return size(); }
@@ -29,7 +29,7 @@ namespace polyfem::assembler
 
 		double compute_energy(const MixedNonLinearAssemblerData &data) const override;
 		Eigen::VectorXd compute_gradient(const MixedNonLinearAssemblerData &data) const override;
-		Eigen::MatrixXd compute_hessian(const MixedNonLinearAssemblerData &data) const override;
+		void compute_hessian(const MixedNonLinearAssemblerData &data, LocalHessian &hessian) const override;
 
 	private:
 		detail::ThermoElasticityModel &model();

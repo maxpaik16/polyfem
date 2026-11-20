@@ -5,9 +5,9 @@
 #include <polyfem/optimization/BuildFromJson.hpp>
 #include <polyfem/optimization/DiffCache.hpp>
 #include <polyfem/optimization/OptState.hpp>
+#include <polyfem/io/InputLoader.hpp>
 #include <polyfem/optimization/AdjointNLProblem.hpp>
 #include <polyfem/optimization/var2sims/ElasticVariableToSimulation.hpp>
-#include <polyfem/optimization/forms/SmoothingForms.hpp>
 #include <polyfem/optimization/forms/TargetForms.hpp>
 #include <polyfem/optimization/parametrization/Parametrizations.hpp>
 
@@ -328,7 +328,8 @@ TEST_CASE("shape-neumann-nodes", "[opt_gradient]")
 	constexpr uint64_t SEED = BASE_SEED + 5;
 	constexpr int REPEAT = 3;
 	constexpr double TOL = 2.0e-5;
-	run_test1("shape-neumann-nodes-opt.json", 1e-7, TOL, 0.0, 1.0, SEED, REPEAT);
+	// Resolve objective changes above the forward solver's numerical error.
+	run_test1("shape-neumann-nodes-opt.json", 1e-5, TOL, 0.0, 1.0, SEED, REPEAT);
 }
 
 TEST_CASE("shape-pressure-nodes-2d", "[opt_gradient]")
@@ -418,8 +419,12 @@ TEST_CASE("node-trajectory", "[opt_gradient]")
 
 	// One state only.
 	std::string root = POLYFEM_DIFF_DIR + std::string("/input/");
-	auto varforms =
-		from_json::build_varforms(root, opt_args["states"], -1, opt_args["output"]["log"]);
+	auto loaded_state = io::load_json_input(
+		std::filesystem::path(root) / opt_args["states"][0]["path"].get<std::string>());
+	json state_args = loaded_state.config;
+	state_args["output"]["log"].merge_patch(opt_args["output"]["log"]);
+	std::vector<std::shared_ptr<varform::DifferentiableVarForm>> varforms = {
+		from_json::build_differentiable_varform(state_args, *loaded_state.resources, -1)};
 	std::vector<std::shared_ptr<DiffCache>> diff_caches = {std::make_shared<DiffCache>()};
 
 	auto elastic_var2sim =
@@ -473,7 +478,22 @@ TEST_CASE("shape-transient-friction", "[opt_gradient]")
 	constexpr uint64_t SEED = BASE_SEED + 15;
 	constexpr int REPEAT = 3;
 	constexpr double TOL = 1.1e-5;
-	run_test1("shape-transient-friction-opt.json", 1e-6, TOL, 0.0, 1.0, SEED, REPEAT);
+	TestContext ctx{"shape-transient-friction-opt.json"};
+
+	// The FD step of 1e-6 amplifies forward-solve error by 5e5, and the
+	// scene's grad_norm_tol of 2.5e-10 leaves enough of it to exceed TOL.
+	for (auto &varform : ctx.opt.varforms)
+		varform->get_args()["solver"]["nonlinear"]["grad_norm_tol"] = 1e-11;
+
+	Eigen::VectorXd x;
+	ctx.opt.initial_guess(x);
+
+	std::mt19937_64 rng(SEED);
+	for (int i = 0; i < REPEAT; ++i)
+	{
+		Eigen::MatrixXd velocity = uniform_random_matrix(x.size(), 1, rng, 0.0, 1.0);
+		verify_adjoint(*ctx.opt.nl_problem, x, velocity, 1e-6f, TOL, "shape-transient-friction", i, SEED);
+	}
 }
 
 TEST_CASE("shape-transient-friction-sdf", "[opt_gradient]")
@@ -654,6 +674,14 @@ TEST_CASE("dirichlet-nodes-3d", "[opt_gradient]")
 	constexpr int REPEAT = 3;
 	constexpr double TOL = 1.8e-7;
 	run_test1("dirichlet-nodes-3d-opt.json", 1e-7, TOL, 0.0, 1.0, SEED, REPEAT);
+}
+
+TEST_CASE("elastic-material-smoothing", "[opt_gradient]")
+{
+	constexpr int REPEAT = 1;
+	constexpr double TOL = 2e-7;
+	run_test1("elastic-material-smoothing-2d-opt.json", 1e-6, TOL, -0.4, 0.6, BASE_SEED + 32, REPEAT);
+	run_test1("elastic-material-smoothing-3d-opt.json", 1e-6, TOL, -0.3, 0.2, BASE_SEED + 33, REPEAT);
 }
 
 // Only on windows debug build homogenize tests failed with:

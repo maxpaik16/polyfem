@@ -33,15 +33,15 @@ namespace polyfem::assembler
 		Eigen::VectorXd
 		assemble_gradient(const NonLinearAssemblerData &data) const override;
 
-		Eigen::MatrixXd
+		void
 		// gradient of pde, this returns full gradient or partil depending on the template
-		assemble_hessian(const NonLinearAssemblerData &data) const override;
+		assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const override;
 
 		// rhs for fabbricated solution
 		VectorNd compute_rhs(const AutodiffHessianPt &pt) const override;
 
 		// set viscosity
-		void add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path) override;
+		void add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources) override;
 
 		bool is_fluid() const override { return true; }
 		bool is_tensor() const override { return true; }
@@ -54,8 +54,10 @@ namespace polyfem::assembler
 		// not full graidnet used for Picard iteration
 		bool full_gradient_ = true;
 
-		Eigen::MatrixXd compute_N(const NonLinearAssemblerData &data) const;
-		Eigen::MatrixXd compute_W(const NonLinearAssemblerData &data) const;
+		template <typename Matrix>
+		void compute_N(const NonLinearAssemblerData &data, Eigen::MatrixBase<Matrix> &N) const;
+		template <typename Matrix>
+		void compute_W(const NonLinearAssemblerData &data, Eigen::MatrixBase<Matrix> &W) const;
 	};
 
 } // namespace polyfem::assembler

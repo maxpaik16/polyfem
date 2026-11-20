@@ -6,12 +6,14 @@
 #include <polyfem/utils/Types.hpp>
 
 #include <Eigen/Dense>
-#include <geogram/mesh/mesh.h>
 
 namespace polyfem
 {
 	namespace mesh
 	{
+		/// 2D mesh interface: the elements are the faces (polygons) and the
+		/// boundary elements are the edges. Navigation::Index is a (vertex, edge,
+		/// face) flag; switch_vertex/edge/face move it to the adjacent flag.
 		class Mesh2D : public Mesh
 		{
 		public:

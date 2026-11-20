@@ -4,11 +4,11 @@ namespace polyfem::assembler
 {
 	using namespace basis;
 
-	void IncompressibleLinearElasticityDispacement::add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path)
+	void IncompressibleLinearElasticityDispacement::add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources)
 	{
 		assert(size() == 2 || size() == 3);
 
-		params_.add_multimaterial(index, params, size() == 3, units.stress(), root_path);
+		params_.add_multimaterial(index, params, size() == 3, units.stress(), resources);
 	}
 
 	Eigen::Matrix<double, Eigen::Dynamic, 1, 0, 9, 1>
@@ -66,6 +66,13 @@ namespace polyfem::assembler
 		assert(size() == 2 || size() == 3);
 		all.resize(local_pts.rows(), all_size);
 		assert(displacement.cols() == 1);
+
+		// This formulation has no energy.
+		if (type == ElasticityTensorType::ENERGY)
+		{
+			all.setZero();
+			return;
+		}
 
 		Eigen::MatrixXd displacement_grad(size(), size());
 
@@ -162,11 +169,11 @@ namespace polyfem::assembler
 		return res;
 	}
 
-	void IncompressibleLinearElasticityPressure::add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path)
+	void IncompressibleLinearElasticityPressure::add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources)
 	{
 		assert(disp_size_ == 2 || disp_size_ == 3);
 
-		params_.add_multimaterial(index, params, disp_size_ == 3, units.stress(), root_path);
+		params_.add_multimaterial(index, params, disp_size_ == 3, units.stress(), resources);
 	}
 
 	Eigen::Matrix<double, Eigen::Dynamic, 1, 0, 9, 1>

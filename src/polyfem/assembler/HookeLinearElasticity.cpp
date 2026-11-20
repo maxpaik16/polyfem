@@ -48,7 +48,7 @@ namespace polyfem::assembler
 	{
 	}
 
-	void HookeLinearElasticity::add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path)
+	void HookeLinearElasticity::add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources)
 	{
 		assert(size() == 2 || size() == 3);
 
@@ -57,26 +57,26 @@ namespace polyfem::assembler
 			if (params.count("young"))
 			{
 				if (params["young"].is_number() && params["nu"].is_number())
-					elasticity_tensor_.set_from_young_poisson(params["young"], params["nu"], units.stress(), root_path);
+					elasticity_tensor_.set_from_young_poisson(params["young"], params["nu"], units.stress(), resources);
 			}
 			else if (params.count("E"))
 			{
 				if (params["E"].is_number() && params["nu"].is_number())
-					elasticity_tensor_.set_from_young_poisson(params["E"], params["nu"], units.stress(), root_path);
+					elasticity_tensor_.set_from_young_poisson(params["E"], params["nu"], units.stress(), resources);
 			}
 			else if (params.count("lambda"))
 			{
 				if (params["lambda"].is_number() && params["mu"].is_number())
-					elasticity_tensor_.set_from_lambda_mu(params["lambda"], params["mu"], units.stress(), root_path);
+					elasticity_tensor_.set_from_lambda_mu(params["lambda"], params["mu"], units.stress(), resources);
 			}
 		}
 		else
 		{
 			std::vector<double> entries = params["elasticity_tensor"];
-			elasticity_tensor_.set_from_entries(entries, units.stress(), root_path);
+			elasticity_tensor_.set_from_entries(entries, units.stress(), resources);
 		}
 		if (params.contains("fiber_direction"))
-			fiber_direction_.add_multimaterial(index, params["fiber_direction"], units.length(), root_path);
+			fiber_direction_.add_multimaterial(index, params["fiber_direction"], units.length(), resources);
 	}
 
 	void HookeLinearElasticity::set_size(const int size)
@@ -286,6 +286,12 @@ namespace polyfem::assembler
 					elasticity_tensor.compute_stress<6>(eps, 4), elasticity_tensor.compute_stress<6>(eps, 3), elasticity_tensor.compute_stress<6>(eps, 2);
 			}
 
+			if (type == ElasticityTensorType::ENERGY)
+			{
+				all(p, 0) = 0.5 * (sigma * strain).trace();
+				continue;
+			}
+
 			if (type == ElasticityTensorType::PK1)
 				sigma = pk1_from_cauchy(sigma, displacement_grad + Eigen::MatrixXd::Identity(size(), size()));
 			else if (type == ElasticityTensorType::PK2)
@@ -352,11 +358,11 @@ namespace polyfem::assembler
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar1<double, Eigen::VectorXd>>(data); });
 	}
 
-	Eigen::MatrixXd HookeLinearElasticity::assemble_hessian(const NonLinearAssemblerData &data) const
+	void HookeLinearElasticity::assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const
 	{
 		const int n_bases = data.vals.basis_values.size();
-		return polyfem::hessian_from_energy(
-			size(), n_bases, data,
+		polyfem::hessian_from_energy(
+			size(), n_bases, data, hessian,
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar2<double, Eigen::Matrix<double, 6, 1>, Eigen::Matrix<double, 6, 6>>>(data); },
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar2<double, Eigen::Matrix<double, 8, 1>, Eigen::Matrix<double, 8, 8>>>(data); },
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar2<double, Eigen::Matrix<double, 12, 1>, Eigen::Matrix<double, 12, 12>>>(data); },

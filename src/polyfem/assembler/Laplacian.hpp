@@ -21,7 +21,7 @@ namespace polyfem
 
 			std::string name() const override { return "Laplacian"; }
 			std::map<std::string, ParamFunc> parameters() const override;
-			void add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path) override;
+			void add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources) override;
 
 			/// computes local stiffness matrix (1x1) for bases i,j
 			/// where i,j is passed in through data
@@ -30,7 +30,7 @@ namespace polyfem
 
 			double compute_energy(const NonLinearAssemblerData &data) const override;
 			Eigen::VectorXd assemble_gradient(const NonLinearAssemblerData &data) const override;
-			Eigen::MatrixXd assemble_hessian(const NonLinearAssemblerData &data) const override;
+			void assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const override;
 
 			/// uses autodiff to compute the rhs for a fabricated solution
 			/// in this case it just return pt.getHessian().trace()

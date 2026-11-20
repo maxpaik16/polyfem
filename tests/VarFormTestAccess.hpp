@@ -22,7 +22,24 @@ namespace polyfem::test
 		const std::vector<mesh::LocalBoundary> *total_local_boundary = nullptr;
 		int n_bases = 0;
 		int n_obstacle_vertices = 0;
-		std::string root_path;
+	};
+
+	struct ElasticFormDebugData
+	{
+		const mesh::Mesh &mesh;
+		const varform::FESpace &space;
+		std::vector<basis::ElementBases> &bases;
+		const varform::VarFormBoundaryState &boundary;
+		assembler::AssemblyValsCache &assembly_cache;
+		assembler::AssemblyValsCache &mass_assembly_cache;
+		const StiffnessMatrix &mass;
+		const Eigen::MatrixXd &rhs;
+		assembler::Assembler &assembler;
+		assembler::Mass &mass_assembler;
+		const assembler::Problem &problem;
+		std::shared_ptr<assembler::RhsAssembler> rhs_assembler;
+		QuadratureOrders boundary_samples;
+		double average_mass;
 	};
 
 	struct NavierStokesFSIDebugData
@@ -61,6 +78,61 @@ namespace polyfem::test
 			form.prepare();
 		}
 
+		/// The mesh of the form, also before prepare().
+		static const mesh::Mesh &mesh(const varform::VarForm &form)
+		{
+			return *form.mesh_;
+		}
+
+		/// Make the next prepare() rebuild everything, as a geometry update does.
+		static void invalidate(varform::VarForm &form)
+		{
+			form.set_args(form.args);
+		}
+
+		static ElasticFormDebugData elastic_form_data(varform::ElasticVarForm &form)
+		{
+			return {
+				*form.mesh_, form.space_, *form.space_.bases, form.boundary_, form.ass_vals_cache_, form.mass_ass_vals_cache_,
+				form.mass_, form.rhs_, *form.primary_assembler_, *form.mass_assembler_,
+				*form.problem, form.rhs_assembler_, form.elastic_boundary_samples(), form.avg_mass_};
+		}
+
+		static void build_collision_mesh(varform::ElasticVarForm &form, ipc::CollisionMesh &collision_mesh)
+		{
+			const io::OutputSpace output = form.output_space();
+			if (output.obstacle == nullptr)
+				throw std::runtime_error("Elastic contact fixture requires obstacle storage.");
+			varform::NonlinearElasticVarForm::build_collision_mesh(
+				*form.mesh_, form.space_.n_bases, form.space_.basis_list(),
+				form.space_.geometry_basis_list(), form.boundary_.total_local_boundary,
+				*output.obstacle, form.args, form.resources_, form.space_.space_in_node_to_node,
+				collision_mesh);
+		}
+
+		static std::shared_ptr<assembler::PressureAssembler> build_pressure_assembler(varform::ElasticVarForm &form)
+		{
+			const io::OutputSpace output = form.output_space();
+			if (output.obstacle == nullptr)
+				throw std::runtime_error("Elastic pressure fixture requires obstacle storage.");
+			return std::make_shared<assembler::PressureAssembler>(
+				*form.primary_assembler_, *form.mesh_, *output.obstacle,
+				form.boundary_.local_pressure_boundary, form.boundary_.local_pressure_cavity,
+				form.boundary_.boundary_nodes, form.elastic_primitive_to_node(), form.elastic_node_to_primitive(),
+				form.space_.n_bases, form.mesh_->dimension(), form.space_.basis_list(),
+				form.space_.geometry_basis_list(), *form.problem);
+		}
+
+		static void set_materials(varform::ElasticVarForm &form, assembler::Assembler &assembler)
+		{
+			form.set_materials(assembler, form.mesh_->dimension());
+		}
+
+		static void build_mesh_matrices(const varform::ElasticVarForm &form, Eigen::MatrixXd &vertices, Eigen::MatrixXi &elements)
+		{
+			form.build_mesh_matrices(vertices, elements);
+		}
+
 		static VarFormDebugData debug_data(const varform::VarForm &form)
 		{
 			const io::OutputSpace output_space = form.output_space();
@@ -74,8 +146,7 @@ namespace polyfem::test
 					output_space.geometry_bases,
 					output_space.total_local_boundary,
 					elastic->space_.n_bases,
-					output_space.obstacle ? output_space.obstacle->n_vertices() : 0,
-					form.root_path};
+					output_space.obstacle ? output_space.obstacle->n_vertices() : 0};
 			}
 
 			if (const auto *fluid = dynamic_cast<const varform::FluidVarForm *>(&form))
@@ -87,8 +158,7 @@ namespace polyfem::test
 					output_space.geometry_bases,
 					output_space.total_local_boundary,
 					fluid->space_.n_bases,
-					0,
-					form.root_path};
+					0};
 			}
 
 			if (const auto *bilaplacian = dynamic_cast<const varform::BilaplacianVarForm *>(&form))
@@ -100,8 +170,7 @@ namespace polyfem::test
 					output_space.geometry_bases,
 					output_space.total_local_boundary,
 					bilaplacian->space_.n_bases,
-					0,
-					form.root_path};
+					0};
 			}
 
 			if (const auto *scalar = dynamic_cast<const varform::ScalarVarForm *>(&form))
@@ -113,8 +182,7 @@ namespace polyfem::test
 					output_space.geometry_bases,
 					output_space.total_local_boundary,
 					scalar->space_.n_bases,
-					0,
-					form.root_path};
+					0};
 			}
 
 			throw std::runtime_error("Unsupported VarForm test debug data request.");

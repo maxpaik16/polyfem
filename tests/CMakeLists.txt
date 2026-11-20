@@ -7,8 +7,14 @@ set(test_sources
   test_bases.cpp
   test_clipping.cpp
   test_cmesh.cpp
+  test_mesh3d_storage.cpp
+  test_mesh_geometry.cpp
+  test_mesh_readers.cpp
+  test_mmg_remesh.cpp
   test_collision_proxy.cpp
   test_geometry_utils.cpp
+  test_growth_elasticity.cpp
+  test_growth_law.cpp
   test_hdf5.cpp
   test_interpolation.cpp
   test_jacobian.cpp
@@ -21,7 +27,6 @@ set(test_sources
   test_problem.cpp
   test_quadrature.cpp
   test_rbf.cpp
-  test_restart.cpp
   test_tbb.cpp
   test_time_integrators.cpp
   test_utils.cpp
@@ -74,6 +79,11 @@ target_link_libraries(unit_tests PUBLIC polyfem::diff)
 ################################################################################
 
 target_compile_definitions(unit_tests PUBLIC -DPOLYFEM_TEST_DIR=\"${CMAKE_SOURCE_DIR}/tests\")
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(POLYFEM_TEST_PYTHON_EXECUTABLE "${Python3_EXECUTABLE}" CACHE FILEPATH "Python executable used by integration tests")
+target_compile_definitions(unit_tests PUBLIC
+  POLYFEM_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"
+  POLYFEM_TEST_PYTHON_EXECUTABLE=\"${POLYFEM_TEST_PYTHON_EXECUTABLE}\")
 
 target_compile_definitions(unit_tests PUBLIC CATCH_CONFIG_ENABLE_BENCHMARKING)
 
@@ -88,3 +98,6 @@ include(Catch)
 # Register tests
 set(PARSE_CATCH_TESTS_ADD_TO_CONFIGURE_DEPENDS ON)
 catch_discover_tests(unit_tests ADD_TAGS_AS_LABELS EXTRA_ARGS --rng-seed 1)
+
+add_test(NAME package_json_hdf5
+  COMMAND "${POLYFEM_TEST_PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_package_json_hdf5.py")

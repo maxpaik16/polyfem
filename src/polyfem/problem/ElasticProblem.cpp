@@ -77,7 +77,7 @@ namespace polyfem
 			}
 		}
 
-		void TorsionElasticProblem::set_parameters(const json &params, const std::string &root_path)
+		void TorsionElasticProblem::set_parameters(const json &params, const io::ResourceIO &resources)
 		{
 			if (params.contains("axis_coordiante"))
 			{
@@ -185,7 +185,7 @@ namespace polyfem
 			}
 		}
 
-		void DoubleTorsionElasticProblem::set_parameters(const json &params, const std::string &root_path)
+		void DoubleTorsionElasticProblem::set_parameters(const json &params, const io::ResourceIO &resources)
 		{
 			if (params.contains("axis_coordiante0"))
 			{
@@ -261,24 +261,24 @@ namespace polyfem
 		namespace
 		{
 			template <typename T>
-			Eigen::Matrix<T, 2, 1> function(T x, T y, const double t)
+			Eigen::Matrix<T, 2, 1> function(T x, T y)
 			{
 				Eigen::Matrix<T, 2, 1> res;
 
-				res(0) = t * (y * y * y + x * x + x * y) / 50.;
-				res(1) = t * (3 * x * x * x * x + x * y * y + x) / 50.;
+				res(0) = (y * y * y + x * x + x * y) / 50.;
+				res(1) = (3 * x * x * x * x + x * y * y + x) / 50.;
 
 				return res;
 			}
 
 			template <typename T>
-			Eigen::Matrix<T, 3, 1> function(T x, T y, T z, const double t)
+			Eigen::Matrix<T, 3, 1> function(T x, T y, T z)
 			{
 				Eigen::Matrix<T, 3, 1> res;
 
-				res(0) = t * (x * y + x * x + y * y * y + 6 * z) / 80.;
-				res(1) = t * (z * x - z * z * z + x * y * y + 3 * x * x * x * x) / 80.;
-				res(2) = t * (x * y * z + z * z * y * y - 2 * x) / 80.;
+				res(0) = (x * y + x * x + y * y * y + 6 * z) / 80.;
+				res(1) = (z * x - z * z * z + x * y * y + 3 * x * x * x * x) / 80.;
+				res(2) = (x * y * z + z * z * y * y - 2 * x) / 80.;
 
 				return res;
 			}
@@ -408,9 +408,9 @@ namespace polyfem
 		VectorNd ElasticProblemExact::eval_fun(const VectorNd &pt, const double t) const
 		{
 			if (pt.size() == 2)
-				return function(pt(0), pt(1), t);
+				return function(pt(0), pt(1));
 			else if (pt.size() == 3)
-				return function(pt(0), pt(1), pt(2), t);
+				return function(pt(0), pt(1), pt(2));
 
 			assert(false);
 			return VectorNd(pt.size());
@@ -419,9 +419,9 @@ namespace polyfem
 		AutodiffGradPt ElasticProblemExact::eval_fun(const AutodiffGradPt &pt, const double t) const
 		{
 			if (pt.size() == 2)
-				return function(pt(0), pt(1), t);
+				return function(pt(0), pt(1));
 			else if (pt.size() == 3)
-				return function(pt(0), pt(1), pt(2), t);
+				return function(pt(0), pt(1), pt(2));
 
 			assert(false);
 			return AutodiffGradPt(pt.size());
@@ -430,9 +430,9 @@ namespace polyfem
 		AutodiffHessianPt ElasticProblemExact::eval_fun(const AutodiffHessianPt &pt, const double t) const
 		{
 			if (pt.size() == 2)
-				return function(pt(0), pt(1), t);
+				return function(pt(0), pt(1));
 			else if (pt.size() == 3)
-				return function(pt(0), pt(1), pt(2), t);
+				return function(pt(0), pt(1), pt(2));
 
 			assert(false);
 			return AutodiffHessianPt(pt.size());
@@ -558,7 +558,7 @@ namespace polyfem
 			boundary_ids_ = {4};
 		}
 
-		void GravityProblem::set_parameters(const json &params, const std::string &root_path)
+		void GravityProblem::set_parameters(const json &params, const io::ResourceIO &resources)
 		{
 			if (params.contains("force"))
 			{
@@ -648,7 +648,7 @@ namespace polyfem
 			width = 1 / 3.;
 		}
 
-		void ElasticCantileverExact::set_parameters(const json &params, const std::string &root_path)
+		void ElasticCantileverExact::set_parameters(const json &params, const io::ResourceIO &resources)
 		{
 			if (params.contains("displacement"))
 			{

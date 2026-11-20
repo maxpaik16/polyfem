@@ -23,7 +23,7 @@ namespace polyfem::assembler
 	{
 	}
 
-	void SaintVenantElasticity::add_multimaterial(const int index, const json &params, const Units &units, const std::string &root_path)
+	void SaintVenantElasticity::add_multimaterial(const int index, const json &params, const Units &units, const io::ResourceIO &resources)
 	{
 		assert(size() == 2 || size() == 3);
 
@@ -32,23 +32,23 @@ namespace polyfem::assembler
 			if (params.count("young"))
 			{
 				if (params["young"].is_number() && params["nu"].is_number())
-					elasticity_tensor_.set_from_young_poisson(params["young"], params["nu"], units.stress(), root_path);
+					elasticity_tensor_.set_from_young_poisson(params["young"], params["nu"], units.stress(), resources);
 			}
 			else if (params.count("E"))
 			{
 				if (params["E"].is_number() && params["nu"].is_number())
-					elasticity_tensor_.set_from_young_poisson(params["E"], params["nu"], units.stress(), root_path);
+					elasticity_tensor_.set_from_young_poisson(params["E"], params["nu"], units.stress(), resources);
 			}
 			else if (params.count("lambda"))
 			{
 				if (params["lambda"].is_number() && params["mu"].is_number())
-					elasticity_tensor_.set_from_lambda_mu(params["lambda"], params["mu"], units.stress(), root_path);
+					elasticity_tensor_.set_from_lambda_mu(params["lambda"], params["mu"], units.stress(), resources);
 			}
 		}
 		else
 		{
 			std::vector<double> entries = params["elasticity_tensor"];
-			elasticity_tensor_.set_from_entries(entries, units.stress(), root_path);
+			elasticity_tensor_.set_from_entries(entries, units.stress(), resources);
 		}
 	}
 
@@ -107,14 +107,13 @@ namespace polyfem::assembler
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar1<double, Eigen::VectorXd>>(data); });
 	}
 
-	Eigen::MatrixXd
-	SaintVenantElasticity::assemble_hessian(const NonLinearAssemblerData &data) const
+	void SaintVenantElasticity::assemble_hessian(const NonLinearAssemblerData &data, LocalHessian &hessian) const
 	{
 		// igl::Timer time; time.start();
 
 		const int n_bases = data.vals.basis_values.size();
-		return polyfem::hessian_from_energy(
-			size(), n_bases, data,
+		polyfem::hessian_from_energy(
+			size(), n_bases, data, hessian,
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar2<double, Eigen::Matrix<double, 6, 1>, Eigen::Matrix<double, 6, 6>>>(data); },
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar2<double, Eigen::Matrix<double, 8, 1>, Eigen::Matrix<double, 8, 8>>>(data); },
 			[&](const NonLinearAssemblerData &data) { return compute_energy_aux<DScalar2<double, Eigen::Matrix<double, 12, 1>, Eigen::Matrix<double, 12, 12>>>(data); },
@@ -186,6 +185,12 @@ namespace polyfem::assembler
 				stress_tensor << stress(elasticity_tensor_, eps, 0), stress(elasticity_tensor_, eps, 5), stress(elasticity_tensor_, eps, 4),
 					stress(elasticity_tensor_, eps, 5), stress(elasticity_tensor_, eps, 1), stress(elasticity_tensor_, eps, 3),
 					stress(elasticity_tensor_, eps, 4), stress(elasticity_tensor_, eps, 3), stress(elasticity_tensor_, eps, 2);
+			}
+
+			if (type == ElasticityTensorType::ENERGY)
+			{
+				all(p, 0) = 0.5 * (stress_tensor * strain).trace();
+				continue;
 			}
 
 			stress_tensor = (Eigen::MatrixXd::Identity(size(), size()) + displacement_grad) * stress_tensor;

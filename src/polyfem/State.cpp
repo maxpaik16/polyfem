@@ -1,12 +1,16 @@
 #include <polyfem/State.hpp>
 
 #include <polyfem/Units.hpp>
+#include <polyfem/assembler/AssemblerUtils.hpp>
 
-#include <polyfem/mesh/GeometryReader.hpp>
+#include <polyfem/io/ResourceIO.hpp>
+#include <polyfem/io/Checkpoint.hpp>
+#include <polyfem/mesh/GeometryLoader.hpp>
+#include <polyfem/mesh/MeshLoader.hpp>
+#include <polyfem/mesh/MeshReader.hpp>
 #include <polyfem/mesh/mesh2D/Mesh2D.hpp>
 #include <polyfem/mesh/mesh3D/Mesh3D.hpp>
 
-#include <polyfem/utils/GeogramUtils.hpp>
 #include <polyfem/utils/JSONUtils.hpp>
 #include <polyfem/utils/Logger.hpp>
 #include <polyfem/utils/StringUtils.hpp>
@@ -26,9 +30,6 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <ipc/utils/logger.hpp>
-#ifdef POLYFEM_WITH_ITR
-#include <wmtk/utils/Logger.hpp>
-#endif
 
 #include <igl/Timer.h>
 
@@ -65,16 +66,37 @@ namespace polyfem
 
 	namespace
 	{
-		std::string root_path(const json &args)
+		std::string formulation_from_args(const json &args)
 		{
-			if (utils::is_param_valid(args, "root_path"))
-				return args["root_path"].get<std::string>();
-			return "";
-		}
+			if (!args.contains("materials") || args["materials"].is_null())
+				return "";
 
-		std::string resolve_input_path(const json &args, const std::string &path, const bool only_if_exists = false)
-		{
-			return utils::resolve_path(path, root_path(args), only_if_exists);
+			if (args["materials"].is_array())
+			{
+				std::string current;
+				for (const auto &m : args["materials"])
+				{
+					const std::string tmp = m["type"];
+					if (current.empty())
+						current = tmp;
+					else if (current != tmp)
+					{
+						if (assembler::AssemblerUtils::is_elastic_material(current)
+							&& assembler::AssemblerUtils::is_elastic_material(tmp))
+						{
+							current = "MultiModels";
+						}
+						else
+						{
+							return "";
+						}
+					}
+				}
+
+				return current;
+			}
+
+			return args["materials"].value("type", "");
 		}
 
 		std::string resolve_output_path(const std::string &output_dir, const std::string &path)
@@ -122,7 +144,8 @@ namespace polyfem
 					else if (is_param_valid(args["time"], "time_steps"))
 					{
 						time_steps = args["time"]["time_steps"];
-						assert(time_steps > 0);
+						if (time_steps <= 0)
+							log_and_throw_error("A positive number of time steps is required to infer dt from tend.");
 						dt = (tend - t0) / time_steps;
 						assert(dt > 0);
 					}
@@ -139,7 +162,9 @@ namespace polyfem
 					assert(dt > 0);
 
 					time_steps = args["time"]["time_steps"];
-					assert(time_steps > 0);
+					// A completed checkpoint has a known dt and zero remaining steps.
+					if (time_steps < 0)
+						log_and_throw_error("The number of time steps cannot be negative.");
 
 					tend = t0 + time_steps * dt;
 				}
@@ -168,10 +193,7 @@ namespace polyfem
 		}
 	} // namespace
 
-	State::State()
-	{
-		GeogramUtils::instance().initialize();
-	}
+	State::State() = default;
 
 	void State::init_logger(
 		const std::string &log_file,
@@ -210,19 +232,11 @@ namespace polyfem
 		const spdlog::level::level_enum log_level)
 	{
 		set_logger(std::make_shared<spdlog::logger>("polyfem", sinks.begin(), sinks.end()));
-		GeogramUtils::instance().set_logger(logger());
 
 		ipc::set_logger(std::make_shared<spdlog::logger>("ipctk", sinks.begin(), sinks.end()));
 
-#ifdef POLYFEM_WITH_ITR
-		wmtk::set_logger(std::make_shared<spdlog::logger>("wmtk", sinks.begin(), sinks.end()));
-#endif
-
 		logger().set_level(spdlog::level::trace);
 		ipc::logger().set_level(spdlog::level::trace);
-#ifdef POLYFEM_WITH_ITR
-		wmtk::logger().set_level(spdlog::level::trace);
-#endif
 
 		set_log_level(log_level);
 	}
@@ -246,10 +260,27 @@ namespace polyfem
 		const bool strict_validation,
 		const bool is_adjoint_optimization)
 	{
+		const io::FileSystemIO resources(std::filesystem::current_path());
+		init(p_args_in, resources, strict_validation, is_adjoint_optimization);
+	}
+
+	void State::init(
+		const json &p_args_in,
+		const io::ResourceIO &resources,
+		const bool strict_validation,
+		const bool is_adjoint_optimization)
+	{
+		checkpoint_.reset();
 		json args_in = p_args_in;
+		const std::string resource_root = utils::is_param_valid(args_in, "root_path")
+											  ? args_in["root_path"].get<std::string>()
+											  : std::string();
+		resources_ = resources.with_root(resource_root);
+		args_in.erase("root_path");
 		const bool contact_dhat_was_explicit = args_in.contains("/contact/dhat"_json_pointer);
 
-		apply_common_params(args_in);
+		if (auto common_resources = apply_common_params(args_in, *resources_))
+			resources_ = std::move(common_resources);
 
 		json rules;
 		jse::JSE jse;
@@ -292,7 +323,7 @@ namespace polyfem
 		args = jse.inject_defaults(args_in, rules);
 
 		expand_bc_sidecars(
-			args, jse::embed::polyfem_dirichlet_spec::polyfem_dirichlet::spec());
+			args, jse::embed::polyfem_dirichlet_spec::polyfem_dirichlet::spec(), *resources_);
 
 		Units units;
 		units.init(args["units"]);
@@ -303,19 +334,20 @@ namespace polyfem
 			args["space"]["advanced"]["bc_method"] = "lsq";
 		}
 
-		const std::string output_dir = resolve_input_path(args, args["output"]["directory"].get<std::string>());
+		const std::string configured_output_dir = args["output"]["directory"].get<std::string>();
+		const std::string output_dir = configured_output_dir.empty()
+										   ? std::string()
+										   : (std::filesystem::path(configured_output_dir).is_absolute()
+												  ? std::filesystem::path(configured_output_dir)
+												  : resources_->host_directory() / configured_output_dir)
+												 .lexically_normal()
+												 .string();
 		if (!output_dir.empty())
 			std::filesystem::create_directories(output_dir);
 
 		std::string out_path_log = args["output"]["log"]["path"];
 		if (!out_path_log.empty())
 			out_path_log = resolve_output_path(output_dir, out_path_log);
-
-		for (auto &path : args["constraints"]["hard"])
-			path = resolve_input_path(args, path.get<std::string>());
-
-		for (auto &path : args["constraints"]["soft"])
-			path["data"] = resolve_input_path(args, path["data"].get<std::string>());
 
 		init_logger(
 			out_path_log,
@@ -352,21 +384,46 @@ namespace polyfem
 			args["contact"]["periodic"] = false;
 		}
 
-		const std::string formulation = varform::formulation_from_args(args);
+		const std::string formulation = formulation_from_args(args);
 		if (formulation.empty())
 		{
 			logger().error("specify some 'materials'");
 			throw std::runtime_error("invalid input");
 		}
 
-		variational_formulation = varform::VarFormFactory::create(formulation, args, is_adjoint_optimization);
+		variational_formulation = varform::VarFormFactory::create(formulation, args, *resources_, is_adjoint_optimization);
 		if (!variational_formulation)
-			throw std::runtime_error("polyfem::State is varform-only; use polyfem::legacy::State for " + formulation + ".");
+			throw std::runtime_error("Unsupported configuration for formulation " + formulation + ".");
 
 		logger().info("Using variational formulation: {}", variational_formulation->name());
 		args["contact"]["_dhat_was_explicit"] = contact_dhat_was_explicit;
 		variational_formulation->init(formulation, units, args, output_dir);
 		args["contact"].erase("_dhat_was_explicit");
+
+		variational_formulation->validate_time_dependence();
+	}
+
+	void State::init(const io::CheckpointReader &checkpoint, const bool strict_validation)
+	{
+		init(checkpoint.config(), checkpoint, strict_validation);
+	}
+
+	void State::init(
+		const json &continuation,
+		const io::CheckpointReader &checkpoint,
+		const bool strict_validation)
+	{
+		init(continuation, checkpoint.resources(), strict_validation, false);
+		checkpoint_ = std::cref(checkpoint);
+		variational_formulation->set_checkpoint_reader(checkpoint);
+		if (checkpoint_->get().metadata().formulation != variational_formulation->name())
+			log_and_throw_error(
+				"Checkpoint formulation '{}' is incompatible with configured formulation '{}'.",
+				checkpoint_->get().metadata().formulation, variational_formulation->name());
+		if (std::abs(args["time"]["dt"].get<double>() - checkpoint_->get().metadata().dt) > 1e-12)
+			log_and_throw_error("Checkpoint dt is incompatible with its continuation configuration.");
+		if (std::abs(args["time"]["t0"].get<double>() - checkpoint_->get().metadata().time) > 1e-12)
+			log_and_throw_error("Checkpoint time is incompatible with its continuation configuration.");
 	}
 
 	void State::set_max_threads(const int max_threads)
@@ -374,47 +431,8 @@ namespace polyfem
 		NThread::get().set_num_threads(max_threads);
 	}
 
-	void State::load_mesh(
-		GEO::Mesh &meshin,
-		const std::function<int(const size_t, const std::vector<int> &, const RowVectorNd &, bool)> &boundary_marker,
-		bool non_conforming,
-		bool skip_boundary_sideset)
+	void State::load_mesh(const bool non_conforming)
 	{
-		igl::Timer timer;
-		timer.start();
-		logger().info("Loading mesh...");
-
-		std::unique_ptr<Mesh> mesh = Mesh::create(meshin, non_conforming);
-		if (!mesh)
-		{
-			logger().error("Unable to load the mesh");
-			return;
-		}
-
-		RowVectorNd min, max;
-		mesh->bounding_box(min, max);
-
-		logger().info("mesh bb min [{}], max [{}]", min, max);
-
-		if (!skip_boundary_sideset)
-			mesh->compute_boundary_ids(boundary_marker);
-
-		timer.stop();
-		logger().info(" took {}s", timer.getElapsedTime());
-
-		assert(variational_formulation != nullptr);
-		variational_formulation->set_mesh(std::move(mesh), timer.getElapsedTime());
-	}
-
-	void State::load_mesh(
-		bool non_conforming,
-		const std::vector<std::string> &names,
-		const std::vector<Eigen::MatrixXi> &cells,
-		const std::vector<Eigen::MatrixXd> &vertices)
-	{
-		assert(names.size() == cells.size());
-		assert(vertices.size() == cells.size());
-
 		igl::Timer timer;
 		timer.start();
 
@@ -422,10 +440,21 @@ namespace polyfem
 		assert(is_param_valid(args, "geometry"));
 		Units units;
 		units.init(args["units"]);
-		std::unique_ptr<Mesh> mesh = mesh::read_fem_geometry(
-			units,
-			args["geometry"], args["root_path"],
-			names, vertices, cells, non_conforming);
+		mesh::GeometryLoader geometry_loader(units, *resources_);
+		const auto obstacle_displacements = utils::json_as_array(args["boundary_conditions"]["obstacle_displacements"]);
+		const auto dirichlet_conditions = utils::json_as_array(args["boundary_conditions"]["dirichlet_boundary"]);
+		mesh::LoadedGeometry loaded_geometry;
+		if (checkpoint_)
+		{
+			loaded_geometry.fem = checkpoint_->get().read_mesh("/checkpoint/meshes/active", non_conforming);
+			loaded_geometry.obstacle = geometry_loader.load_obstacles(
+				args["geometry"], obstacle_displacements, dirichlet_conditions,
+				loaded_geometry.fem->dimension(), non_conforming);
+		}
+		else
+			loaded_geometry = geometry_loader.load(
+				args["geometry"], obstacle_displacements, dirichlet_conditions, non_conforming);
+		auto &mesh = loaded_geometry.fem;
 
 		if (mesh == nullptr)
 			log_and_throw_error("unable to load the mesh!");
@@ -455,23 +484,22 @@ namespace polyfem
 		// FIXME: this is a temporary workaround to avoid incorrect Jacobian validity results for non-simplicial meshes when using discrete inversion checking. We should instead implement proper Jacobian validity checking for non-simplicial meshes.
 		assert(variational_formulation != nullptr);
 		variational_formulation->set_args(args);
-		variational_formulation->set_mesh(std::move(mesh), timer.getElapsedTime());
+		variational_formulation->set_geometry(std::move(loaded_geometry), timer.getElapsedTime());
 	}
 
 	void State::solve(Eigen::MatrixXd &sol)
 	{
 		assert(variational_formulation != nullptr);
-
 		variational_formulation->set_time_callback(time_callback);
 		variational_formulation->solve(sol);
 	}
 
-	void State::load_mesh(const Eigen::MatrixXd &V, const Eigen::MatrixXi &F, bool non_conforming)
+	void State::set_mesh(const Eigen::MatrixXd &V, const Eigen::MatrixXi &F, bool non_conforming)
 	{
 		assert(variational_formulation != nullptr);
 		igl::Timer timer;
 		timer.start();
-		auto mesh = mesh::Mesh::create(V, F, non_conforming);
+		auto mesh = mesh::Mesh::create(mesh::MeshData(V, F), non_conforming);
 		timer.stop();
 		variational_formulation->set_mesh(std::move(mesh), timer.getElapsedTime());
 	}

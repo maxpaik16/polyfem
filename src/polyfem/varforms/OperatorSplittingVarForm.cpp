@@ -19,6 +19,47 @@
 
 namespace polyfem::varform
 {
+	void OperatorSplittingVarForm::serialize_checkpoint(
+		io::CheckpointWriter &writer,
+		const Eigen::MatrixXd &solution,
+		const io::CheckpointMetadata &metadata) const
+	{
+		VarForm::serialize_checkpoint(writer, solution, metadata);
+		write_checkpoint_ordering(writer, "primary", space_);
+		write_checkpoint_ordering(writer, "pressure", pressure_space_);
+		Eigen::MatrixXd velocity, pressure;
+		split_solution(solution, velocity, pressure);
+		writer.write_matrix("/checkpoint/state/velocity", velocity);
+		writer.write_matrix("/checkpoint/state/pressure", pressure);
+	}
+
+	void OperatorSplittingVarForm::deserialize_checkpoint(
+		const io::CheckpointReader &reader,
+		Eigen::MatrixXd &solution)
+	{
+		VarForm::deserialize_checkpoint(reader, solution);
+		validate_checkpoint_solution(solution, stacked_ndof());
+		for (const std::string &path : {
+				 "/checkpoint/state/velocity", "/checkpoint/state/pressure"})
+			if (!reader.exists(path))
+				log_and_throw_error("Operator-splitting checkpoint is missing {}.", path);
+
+		Eigen::MatrixXd velocity = reader.read_matrix("/checkpoint/state/velocity");
+		Eigen::MatrixXd pressure = reader.read_matrix("/checkpoint/state/pressure");
+		if (velocity.rows() != primary_ndof() || velocity.cols() != 1)
+			log_and_throw_error("Operator-splitting checkpoint velocity has invalid dimensions.");
+		if (pressure.rows() != pressure_space_.n_bases || pressure.cols() != 1)
+			log_and_throw_error("Operator-splitting checkpoint pressure has invalid dimensions.");
+		if (!solution.topRows(primary_ndof()).isApprox(velocity)
+			|| !solution.middleRows(primary_ndof(), pressure_space_.n_bases).isApprox(pressure))
+			log_and_throw_error("Operator-splitting checkpoint contains inconsistent solution blocks.");
+
+		reorder_checkpoint_block(reader, "primary", space_, mesh_->dimension(), 0, velocity);
+		reorder_checkpoint_block(reader, "pressure", pressure_space_, 1, 0, pressure);
+		solution.topRows(primary_ndof()) = velocity;
+		solution.middleRows(primary_ndof(), pressure_space_.n_bases) = pressure;
+	}
+
 	using namespace varform::internal;
 
 	void OperatorSplittingVarForm::reset()
@@ -47,6 +88,13 @@ namespace polyfem::varform
 
 	void OperatorSplittingVarForm::init(const std::string &formulation, const Units &units, const json &args, const std::string &out_path)
 	{
+		for (const std::string field : {"pressure_boundary", "pressure_cavity"})
+		{
+			const json::json_pointer path("/boundary_conditions/" + field);
+			if (args.contains(path) && !args.at(path).empty())
+				log_and_throw_error("{} does not support boundary_conditions.{}.", formulation, field);
+		}
+
 		VarForm::init(formulation, units, args, out_path);
 		const bool is_time_dependent = args.contains("time") && !args["time"].is_null();
 
@@ -62,13 +110,12 @@ namespace polyfem::varform
 
 			json tmp;
 			tmp["is_time_dependent"] = is_time_dependent;
-			problem->set_parameters(tmp, root_path);
+			problem->set_parameters(tmp, resources_);
 
 			auto bc = args["boundary_conditions"];
-			bc["root_path"] = root_path;
-			problem->set_parameters(bc, root_path);
-			problem->set_parameters(args["initial_conditions"], root_path);
-			problem->set_parameters(args["output"], root_path);
+			problem->set_parameters(bc, resources_);
+			problem->set_parameters(args["initial_conditions"], resources_);
+			problem->set_parameters(args["output"], resources_);
 		}
 		else
 		{
@@ -82,7 +129,7 @@ namespace polyfem::varform
 				problem = problem::ProblemFactory::factory().get_problem(args["preset_problem"]["type"]);
 				problem->clear();
 			}
-			problem->set_parameters(args["preset_problem"], root_path);
+			problem->set_parameters(args["preset_problem"], resources_);
 		}
 
 		problem->set_units(*primary_assembler_, units);
@@ -301,7 +348,7 @@ namespace polyfem::varform
 			*primary_assembler_, *mesh_, nullptr,
 			boundary_.dirichlet_nodes, boundary_.neumann_nodes,
 			boundary_.dirichlet_nodes_position, boundary_.neumann_nodes_position,
-			space_.n_bases, mesh_->dimension(), space_.basis_list(), space_.geometry_basis_list(), mass_ass_vals_cache_, *problem,
+			space_.n_bases, mesh_->dimension(), space_.basis_list(), space_.geometry_basis_list(), mass_ass_vals_cache_, *problem, resources_,
 			args["space"]["advanced"]["bc_method"],
 			rhs_solver_params,
 			/*fe_space_id=*/-1);
@@ -416,21 +463,26 @@ namespace polyfem::varform
 		}
 
 		boundary_.clear_boundary_conditions();
-		for (const auto &lb : all_boundary)
-			boundary_.local_boundary.emplace_back(lb);
-		pressure_boundary_.clear_boundary_conditions();
-
 		problem->setup_bc(
-			mesh, space_.n_bases,
-			space_.basis_list(), space_.geometry_basis_list(), pressure_space_.basis_list(),
-			boundary_.local_boundary,
-			boundary_.boundary_nodes,
-			boundary_.local_neumann_boundary,
-			boundary_.local_pressure_boundary,
-			boundary_.local_pressure_cavity,
-			pressure_boundary_.boundary_nodes,
-			boundary_.dirichlet_nodes, boundary_.neumann_nodes);
-		pressure_boundary_.normalize_boundary_nodes();
+			mesh, assembler::BoundaryKind::Dirichlet, /*fe_space_id=*/-1,
+			space_.basis_list(), boundary_.total_local_boundary,
+			boundary_.local_boundary, boundary_.boundary_nodes, mesh.dimension());
+		problem->setup_bc(
+			mesh, assembler::BoundaryKind::Neumann, /*fe_space_id=*/-1,
+			boundary_.total_local_boundary, boundary_.local_neumann_boundary);
+
+		problem->setup_nodal_bc(
+			mesh, assembler::BoundaryKind::Dirichlet, /*fe_space_id=*/-1, space_.n_bases, boundary_.dirichlet_nodes);
+		problem->setup_nodal_bc(
+			mesh, assembler::BoundaryKind::Neumann, /*fe_space_id=*/-1, space_.n_bases, boundary_.neumann_nodes);
+
+		for (const int n_id : boundary_.dirichlet_nodes)
+		{
+			const int tag = mesh.get_node_id(n_id);
+			for (int d = 0; d < mesh.dimension(); ++d)
+				if (problem->is_nodal_dimension_dirichlet(n_id, tag, d, /*fe_space_id=*/-1))
+					boundary_.boundary_nodes.push_back(n_id * mesh.dimension() + d);
+		}
 
 		rebuild_node_positions(space_.basis_list(), boundary_.dirichlet_nodes, boundary_.dirichlet_nodes_position);
 		rebuild_node_positions(space_.basis_list(), boundary_.neumann_nodes, boundary_.neumann_nodes_position);
@@ -461,7 +513,6 @@ namespace polyfem::varform
 		igl::Timer timer;
 		json p_params = {};
 		p_params["formulation"] = primary_assembler_->name();
-		p_params["root_path"] = root_path;
 		{
 			RowVectorNd min, max, delta;
 			mesh.bounding_box(min, max);
@@ -471,7 +522,7 @@ namespace polyfem::varform
 			else
 				p_params["bbox_center"] = {delta(0), delta(1)};
 		}
-		problem->set_parameters(p_params, root_path);
+		problem->set_parameters(p_params, resources_);
 
 		rhs_.resize(0, 0);
 
@@ -505,20 +556,12 @@ namespace polyfem::varform
 		if (sol.size() <= 0)
 		{
 			assert(rhs_assembler_ != nullptr);
-			const bool was_solution_loaded = read_initial_x_from_file(
-				resolve_input_path(args["input"]["data"]["state"]), "u",
-				args["input"]["data"]["reorder"], space_.space_in_node_to_node,
-				mesh_->dimension(), sol);
-
-			if (!was_solution_loaded)
+			if (problem->is_time_dependent())
+				rhs_assembler_->initial_solution(sol);
+			else
 			{
-				if (problem->is_time_dependent())
-					rhs_assembler_->initial_solution(sol);
-				else
-				{
-					sol.resize(rhs_.size(), 1);
-					sol.setZero();
-				}
+				sol.resize(rhs_.size(), 1);
+				sol.setZero();
 			}
 		}
 		if (sol.cols() > 1)
@@ -797,8 +840,6 @@ namespace polyfem::varform
 			*mesh_, shape, n_el, boundary_.local_boundary, boundary_.boundary_nodes, pressure_boundary_.boundary_nodes, bnd_nodes, mass_,
 			stiffness_viscosity, pressure_stiffness, velocity_mass, dt, viscosity, args["solver"]["linear"]);
 
-		pressure = Eigen::MatrixXd::Zero(pressure_space_.n_bases, 1);
-
 		const QuadratureOrders boundary_samples = n_boundary_samples(space_.disc_orders.maxCoeff(), space_.disc_ordersq.maxCoeff(), discr_order);
 		for (int t = 1; t <= time_steps; ++t)
 		{
@@ -834,6 +875,7 @@ namespace polyfem::varform
 
 			stack_solution(velocity, pressure, sol);
 			save_timestep(time, t, t0, dt, sol);
+			save_step_state(t0, dt, t, sol, nullptr);
 			notify_time_step(t, time_steps, t0, dt);
 		}
 
